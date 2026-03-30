@@ -3,8 +3,23 @@ import { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { ConnectorManager } from "../connectors/manager.js";
 import { normalizeSourceId } from "./normalize-id.js";
 import { executeSqlSchema } from "../tools/execute-sql.js";
+import { diagnoseLocksSchema } from "../tools/diagnose-locks.js";
+import { explainPlanSchema } from "../tools/explain-plan.js";
+import {
+  extensionsStatusSchema,
+  replicationStatusSchema,
+  tableHealthSchema
+} from "../tools/observability.js";
 import { getToolRegistry } from "../tools/registry.js";
-import { BUILTIN_TOOL_EXECUTE_SQL } from "../tools/builtin-tools.js";
+import {
+  BUILTIN_TOOL_DIAGNOSE_LOCKS,
+  BUILTIN_TOOL_EXECUTE_SQL,
+  BUILTIN_TOOL_EXPLAIN_PLAN,
+  BUILTIN_TOOL_EXTENSIONS_STATUS,
+  BUILTIN_TOOL_REPLICATION_STATUS,
+  BUILTIN_TOOL_SEARCH_OBJECTS,
+  BUILTIN_TOOL_TABLE_HEALTH
+} from "../tools/builtin-tools.js";
 import type { ParameterConfig, ToolConfig } from "../types/config.js";
 
 /**
@@ -27,6 +42,8 @@ export interface Tool {
   statement?: string;
   readonly?: boolean;
   max_rows?: number;
+  /** When false or omitted, execute_sql uses PII/clinical column heuristics (fail-closed). */
+  allow_access_to_pii_data?: boolean;
 }
 
 /**
@@ -90,12 +107,13 @@ export function getExecuteSqlMetadata(sourceId: string): ToolMetadata {
   const dbType = sourceConfig.type;
   const isSingleSource = sourceIds.length === 1;
 
-  // Get tool configuration from registry to extract readonly/max_rows
+  // Get tool configuration from registry to extract execute_sql options
   const registry = getToolRegistry();
   const toolConfig = registry.getBuiltinToolConfig(BUILTIN_TOOL_EXECUTE_SQL, sourceId);
   const executeOptions = {
     readonly: toolConfig?.readonly,
     maxRows: toolConfig?.max_rows,
+    allowPii: toolConfig?.allow_access_to_pii_data,
   };
 
   // Determine tool name based on single vs multi-source configuration
@@ -109,9 +127,13 @@ export function getExecuteSqlMetadata(sourceId: string): ToolMetadata {
   // Determine description with more context
   const readonlyNote = executeOptions.readonly ? " [READ-ONLY MODE]" : "";
   const maxRowsNote = executeOptions.maxRows ? ` (limited to ${executeOptions.maxRows} rows)` : "";
+  const piiNote =
+    executeOptions.allowPii === true
+      ? " [PII/clinical column guard off]"
+      : " [PII/clinical column guard on]";
   const description = isSingleSource
-    ? `Execute SQL queries on the ${dbType} database${readonlyNote}${maxRowsNote}`
-    : `Execute SQL queries on the '${sourceId}' ${dbType} database${readonlyNote}${maxRowsNote}`;
+    ? `Execute SQL queries on the ${dbType} database${readonlyNote}${maxRowsNote}${piiNote}`
+    : `Execute SQL queries on the '${sourceId}' ${dbType} database${readonlyNote}${maxRowsNote}${piiNote}`;
 
   // Build annotations object with all standard MCP hints
   const isReadonly = executeOptions.readonly === true;
@@ -160,6 +182,145 @@ export function getSearchObjectsMetadata(sourceId: string): { name: string; desc
   };
 }
 
+export function getDiagnoseLocksMetadata(sourceId: string): ToolMetadata {
+  const sourceIds = ConnectorManager.getAvailableSourceIds();
+  const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
+  const dbType = sourceConfig.type;
+  const isSingleSource = sourceIds.length === 1;
+  const toolName = isSingleSource ? "diagnose_locks" : `diagnose_locks_${normalizeSourceId(sourceId)}`;
+  const title = isSingleSource
+    ? `Diagnose Locks (${dbType})`
+    : `Diagnose Locks on ${sourceId} (${dbType})`;
+  const description = isSingleSource
+    ? "Diagnose PostgreSQL lock contention, blockers, and waiting sessions"
+    : `Diagnose PostgreSQL lock contention, blockers, and waiting sessions on '${sourceId}'`;
+
+  return {
+    name: toolName,
+    description,
+    schema: diagnoseLocksSchema,
+    annotations: {
+      title,
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  };
+}
+
+export function getExplainPlanMetadata(sourceId: string): ToolMetadata {
+  const sourceIds = ConnectorManager.getAvailableSourceIds();
+  const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
+  const dbType = sourceConfig.type;
+  const isSingleSource = sourceIds.length === 1;
+  const toolName = isSingleSource ? "explain_plan" : `explain_plan_${normalizeSourceId(sourceId)}`;
+  const title = isSingleSource
+    ? `Explain Plan (${dbType})`
+    : `Explain Plan on ${sourceId} (${dbType})`;
+  const description = isSingleSource
+    ? "Generate a structured PostgreSQL EXPLAIN plan for a single read-only query"
+    : `Generate a structured PostgreSQL EXPLAIN plan for a single read-only query on '${sourceId}'`;
+
+  return {
+    name: toolName,
+    description,
+    schema: explainPlanSchema,
+    annotations: {
+      title,
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  };
+}
+
+export function getReplicationStatusMetadata(sourceId: string): ToolMetadata {
+  const sourceIds = ConnectorManager.getAvailableSourceIds();
+  const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
+  const dbType = sourceConfig.type;
+  const isSingleSource = sourceIds.length === 1;
+  const toolName = isSingleSource
+    ? "replication_status"
+    : `replication_status_${normalizeSourceId(sourceId)}`;
+  const title = isSingleSource
+    ? `Replication Status (${dbType})`
+    : `Replication Status on ${sourceId} (${dbType})`;
+  const description = isSingleSource
+    ? "Inspect PostgreSQL replication state, streaming clients, and slot health"
+    : `Inspect PostgreSQL replication state, streaming clients, and slot health on '${sourceId}'`;
+
+  return {
+    name: toolName,
+    description,
+    schema: replicationStatusSchema,
+    annotations: {
+      title,
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  };
+}
+
+export function getTableHealthMetadata(sourceId: string): ToolMetadata {
+  const sourceIds = ConnectorManager.getAvailableSourceIds();
+  const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
+  const dbType = sourceConfig.type;
+  const isSingleSource = sourceIds.length === 1;
+  const toolName = isSingleSource ? "table_health" : `table_health_${normalizeSourceId(sourceId)}`;
+  const title = isSingleSource
+    ? `Table Health (${dbType})`
+    : `Table Health on ${sourceId} (${dbType})`;
+  const description = isSingleSource
+    ? "Report PostgreSQL table bloat indicators, dead tuples, and vacuum/analyze recency"
+    : `Report PostgreSQL table bloat indicators, dead tuples, and vacuum/analyze recency on '${sourceId}'`;
+
+  return {
+    name: toolName,
+    description,
+    schema: tableHealthSchema,
+    annotations: {
+      title,
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  };
+}
+
+export function getExtensionsStatusMetadata(sourceId: string): ToolMetadata {
+  const sourceIds = ConnectorManager.getAvailableSourceIds();
+  const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
+  const dbType = sourceConfig.type;
+  const isSingleSource = sourceIds.length === 1;
+  const toolName = isSingleSource
+    ? "extensions_status"
+    : `extensions_status_${normalizeSourceId(sourceId)}`;
+  const title = isSingleSource
+    ? `Extensions Status (${dbType})`
+    : `Extensions Status on ${sourceId} (${dbType})`;
+  const description = isSingleSource
+    ? "Show PostgreSQL extension installation/availability and pg_stat_statements readiness"
+    : `Show PostgreSQL extension installation/availability and pg_stat_statements readiness on '${sourceId}'`;
+
+  return {
+    name: toolName,
+    description,
+    schema: extensionsStatusSchema,
+    annotations: {
+      title,
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  };
+}
+
 /**
  * Convert custom tool parameter configs to Tool parameter format
  * @param params - Parameter configurations from custom tool
@@ -189,6 +350,10 @@ function buildExecuteSqlTool(sourceId: string, toolConfig?: ToolConfig): Tool {
   // ToolConfig is a union type, but ExecuteSqlToolConfig and CustomToolConfig both have these fields
   const readonly = toolConfig && 'readonly' in toolConfig ? toolConfig.readonly : undefined;
   const max_rows = toolConfig && 'max_rows' in toolConfig ? toolConfig.max_rows : undefined;
+  const allow_access_to_pii_data =
+    toolConfig && 'allow_access_to_pii_data' in toolConfig
+      ? toolConfig.allow_access_to_pii_data
+      : undefined;
 
   return {
     name: executeSqlMetadata.name,
@@ -196,6 +361,7 @@ function buildExecuteSqlTool(sourceId: string, toolConfig?: ToolConfig): Tool {
     parameters: executeSqlParameters,
     readonly,
     max_rows,
+    allow_access_to_pii_data,
   };
 }
 
@@ -250,6 +416,56 @@ function buildSearchObjectsTool(sourceId: string): Tool {
   };
 }
 
+function buildDiagnoseLocksTool(sourceId: string): Tool {
+  const metadata = getDiagnoseLocksMetadata(sourceId);
+  return {
+    name: metadata.name,
+    description: metadata.description,
+    parameters: zodToParameters(metadata.schema),
+    readonly: true,
+  };
+}
+
+function buildExplainPlanTool(sourceId: string): Tool {
+  const metadata = getExplainPlanMetadata(sourceId);
+  return {
+    name: metadata.name,
+    description: metadata.description,
+    parameters: zodToParameters(metadata.schema),
+    readonly: true,
+  };
+}
+
+function buildReplicationStatusTool(sourceId: string): Tool {
+  const metadata = getReplicationStatusMetadata(sourceId);
+  return {
+    name: metadata.name,
+    description: metadata.description,
+    parameters: zodToParameters(metadata.schema),
+    readonly: true,
+  };
+}
+
+function buildTableHealthTool(sourceId: string): Tool {
+  const metadata = getTableHealthMetadata(sourceId);
+  return {
+    name: metadata.name,
+    description: metadata.description,
+    parameters: zodToParameters(metadata.schema),
+    readonly: true,
+  };
+}
+
+function buildExtensionsStatusTool(sourceId: string): Tool {
+  const metadata = getExtensionsStatusMetadata(sourceId);
+  return {
+    name: metadata.name,
+    description: metadata.description,
+    parameters: zodToParameters(metadata.schema),
+    readonly: true,
+  };
+}
+
 /**
  * Build custom tool metadata for API response
  */
@@ -278,10 +494,20 @@ export function getToolsForSource(sourceId: string): Tool[] {
   // Uniform iteration: map each enabled tool config to its API representation
   return enabledToolConfigs.map((toolConfig) => {
     // Dispatch based on tool name
-    if (toolConfig.name === "execute_sql") {
+    if (toolConfig.name === BUILTIN_TOOL_EXECUTE_SQL) {
       return buildExecuteSqlTool(sourceId, toolConfig);
-    } else if (toolConfig.name === "search_objects") {
+    } else if (toolConfig.name === BUILTIN_TOOL_SEARCH_OBJECTS) {
       return buildSearchObjectsTool(sourceId);
+    } else if (toolConfig.name === BUILTIN_TOOL_DIAGNOSE_LOCKS) {
+      return buildDiagnoseLocksTool(sourceId);
+    } else if (toolConfig.name === BUILTIN_TOOL_EXPLAIN_PLAN) {
+      return buildExplainPlanTool(sourceId);
+    } else if (toolConfig.name === BUILTIN_TOOL_REPLICATION_STATUS) {
+      return buildReplicationStatusTool(sourceId);
+    } else if (toolConfig.name === BUILTIN_TOOL_TABLE_HEALTH) {
+      return buildTableHealthTool(sourceId);
+    } else if (toolConfig.name === BUILTIN_TOOL_EXTENSIONS_STATUS) {
+      return buildExtensionsStatusTool(sourceId);
     } else {
       // Custom tool
       return buildCustomTool(toolConfig);

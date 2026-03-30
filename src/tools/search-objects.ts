@@ -21,6 +21,32 @@ export type DatabaseObjectType = "schema" | "table" | "column" | "procedure" | "
  */
 export type DetailLevel = "names" | "summary" | "full";
 
+type PostgresForeignKeyDetail = {
+  name: string;
+  columns: string[];
+  referenced_schema: string;
+  referenced_table: string;
+  referenced_columns: string[];
+  on_update: string;
+  on_delete: string;
+  deferrable: boolean;
+  initially_deferred: boolean;
+};
+
+type PostgresTriggerDetail = {
+  name: string;
+  timing: string;
+  events: string[];
+  enabled: string;
+  definition: string;
+};
+
+type PostgresSequenceDetail = {
+  schema: string;
+  name: string;
+  owner_column: string | null;
+};
+
 // Schema for search_objects tool (unified search and list)
 export const searchDatabaseObjectsSchema = {
   object_type: z
@@ -111,6 +137,225 @@ async function getTableComment(
     return null;
   } catch (error) {
     return null;
+  }
+}
+
+/**
+ * Get PostgreSQL relation kind for a table-like object.
+ */
+async function getPostgresRelationKind(
+  connector: Connector,
+  tableName: string,
+  schemaName: string
+): Promise<string | undefined> {
+  if (connector.id !== "postgres") {
+    return undefined;
+  }
+
+  try {
+    const result = await connector.executeSQL(
+      `
+      SELECT c.relkind
+      FROM pg_catalog.pg_class c
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = $1
+      AND c.relname = $2
+      LIMIT 1
+    `,
+      { maxRows: 1 },
+      [schemaName, tableName]
+    );
+
+    const relkind = result.rows?.[0]?.relkind as string | undefined;
+    if (!relkind) {
+      return undefined;
+    }
+
+    const kindMap: Record<string, string> = {
+      r: "table",
+      p: "partitioned_table",
+      v: "view",
+      m: "materialized_view",
+      f: "foreign_table",
+    };
+
+    return kindMap[relkind] ?? relkind;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Get PostgreSQL foreign key details for a relation.
+ */
+async function getPostgresForeignKeys(
+  connector: Connector,
+  tableName: string,
+  schemaName: string
+): Promise<PostgresForeignKeyDetail[]> {
+  if (connector.id !== "postgres") {
+    return [];
+  }
+
+  try {
+    const result = await connector.executeSQL(
+      `
+      SELECT
+        c.conname AS constraint_name,
+        array_agg(src_col.attname ORDER BY src_pos.ord) AS source_columns,
+        ref_ns.nspname AS referenced_schema,
+        ref_tbl.relname AS referenced_table,
+        array_agg(ref_col.attname ORDER BY src_pos.ord) AS referenced_columns,
+        c.confupdtype AS update_action,
+        c.confdeltype AS delete_action,
+        c.condeferrable AS is_deferrable,
+        c.condeferred AS is_initially_deferred
+      FROM pg_catalog.pg_constraint c
+      JOIN pg_catalog.pg_class src_tbl ON src_tbl.oid = c.conrelid
+      JOIN pg_catalog.pg_namespace src_ns ON src_ns.oid = src_tbl.relnamespace
+      JOIN pg_catalog.pg_class ref_tbl ON ref_tbl.oid = c.confrelid
+      JOIN pg_catalog.pg_namespace ref_ns ON ref_ns.oid = ref_tbl.relnamespace
+      JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS src_pos(attnum, ord) ON true
+      JOIN LATERAL unnest(c.confkey) WITH ORDINALITY AS ref_pos(attnum, ord) ON ref_pos.ord = src_pos.ord
+      JOIN pg_catalog.pg_attribute src_col ON src_col.attrelid = src_tbl.oid AND src_col.attnum = src_pos.attnum
+      JOIN pg_catalog.pg_attribute ref_col ON ref_col.attrelid = ref_tbl.oid AND ref_col.attnum = ref_pos.attnum
+      WHERE c.contype = 'f'
+      AND src_ns.nspname = $1
+      AND src_tbl.relname = $2
+      GROUP BY
+        c.conname,
+        ref_ns.nspname,
+        ref_tbl.relname,
+        c.confupdtype,
+        c.confdeltype,
+        c.condeferrable,
+        c.condeferred
+      ORDER BY c.conname
+    `,
+      { maxRows: 1000 },
+      [schemaName, tableName]
+    );
+
+    const actionMap: Record<string, string> = {
+      a: "no_action",
+      r: "restrict",
+      c: "cascade",
+      n: "set_null",
+      d: "set_default",
+    };
+
+    return result.rows.map((row: any) => ({
+      name: row.constraint_name,
+      columns: row.source_columns || [],
+      referenced_schema: row.referenced_schema,
+      referenced_table: row.referenced_table,
+      referenced_columns: row.referenced_columns || [],
+      on_update: actionMap[row.update_action] ?? row.update_action,
+      on_delete: actionMap[row.delete_action] ?? row.delete_action,
+      deferrable: Boolean(row.is_deferrable),
+      initially_deferred: Boolean(row.is_initially_deferred),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get PostgreSQL trigger details for a relation.
+ */
+async function getPostgresTriggers(
+  connector: Connector,
+  tableName: string,
+  schemaName: string
+): Promise<PostgresTriggerDetail[]> {
+  if (connector.id !== "postgres") {
+    return [];
+  }
+
+  try {
+    const result = await connector.executeSQL(
+      `
+      SELECT
+        t.tgname AS trigger_name,
+        CASE
+          WHEN (t.tgtype & 2) = 2 THEN 'before'
+          WHEN (t.tgtype & 64) = 64 THEN 'instead_of'
+          ELSE 'after'
+        END AS trigger_timing,
+        t.tgenabled AS trigger_enabled,
+        pg_catalog.pg_get_triggerdef(t.oid, true) AS trigger_definition,
+        ARRAY_REMOVE(ARRAY[
+          CASE WHEN (t.tgtype & 4) = 4 THEN 'insert' END,
+          CASE WHEN (t.tgtype & 8) = 8 THEN 'delete' END,
+          CASE WHEN (t.tgtype & 16) = 16 THEN 'update' END,
+          CASE WHEN (t.tgtype & 32) = 32 THEN 'truncate' END
+        ], NULL) AS trigger_events
+      FROM pg_catalog.pg_trigger t
+      JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = $1
+      AND c.relname = $2
+      AND NOT t.tgisinternal
+      ORDER BY t.tgname
+    `,
+      { maxRows: 1000 },
+      [schemaName, tableName]
+    );
+
+    return result.rows.map((row: any) => ({
+      name: row.trigger_name,
+      timing: row.trigger_timing,
+      events: row.trigger_events || [],
+      enabled: row.trigger_enabled,
+      definition: row.trigger_definition,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get PostgreSQL sequences owned by table columns.
+ */
+async function getPostgresOwnedSequences(
+  connector: Connector,
+  tableName: string,
+  schemaName: string
+): Promise<PostgresSequenceDetail[]> {
+  if (connector.id !== "postgres") {
+    return [];
+  }
+
+  try {
+    const result = await connector.executeSQL(
+      `
+      SELECT
+        seq_ns.nspname AS sequence_schema,
+        seq.relname AS sequence_name,
+        att.attname AS owner_column
+      FROM pg_catalog.pg_class tbl
+      JOIN pg_catalog.pg_namespace tbl_ns ON tbl_ns.oid = tbl.relnamespace
+      JOIN pg_catalog.pg_depend dep ON dep.refobjid = tbl.oid
+      JOIN pg_catalog.pg_class seq ON seq.oid = dep.objid
+      JOIN pg_catalog.pg_namespace seq_ns ON seq_ns.oid = seq.relnamespace
+      LEFT JOIN pg_catalog.pg_attribute att ON att.attrelid = tbl.oid AND att.attnum = dep.refobjsubid
+      WHERE tbl_ns.nspname = $1
+      AND tbl.relname = $2
+      AND seq.relkind = 'S'
+      AND dep.deptype IN ('a', 'n')
+      ORDER BY seq_ns.nspname, seq.relname
+    `,
+      { maxRows: 1000 },
+      [schemaName, tableName]
+    );
+
+    return result.rows.map((row: any) => ({
+      schema: row.sequence_schema,
+      name: row.sequence_name,
+      owner_column: row.owner_column ?? null,
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -218,6 +463,10 @@ async function searchTables(
             const indexes = await connector.getTableIndexes(tableName, schemaName);
             const rowCount = await getTableRowCount(connector, tableName, schemaName);
             const comment = await getTableComment(connector, tableName, schemaName);
+            const relationKind = await getPostgresRelationKind(connector, tableName, schemaName);
+            const foreignKeys = await getPostgresForeignKeys(connector, tableName, schemaName);
+            const triggers = await getPostgresTriggers(connector, tableName, schemaName);
+            const sequences = await getPostgresOwnedSequences(connector, tableName, schemaName);
 
             results.push({
               name: tableName,
@@ -225,6 +474,7 @@ async function searchTables(
               column_count: columns.length,
               row_count: rowCount,
               ...(comment ? { comment } : {}),
+              ...(relationKind ? { relation_kind: relationKind } : {}),
               columns: columns.map((col: any) => ({
                 name: col.column_name,
                 type: col.data_type,
@@ -238,6 +488,13 @@ async function searchTables(
                 unique: idx.is_unique,
                 primary: idx.is_primary,
               })),
+              ...(connector.id === "postgres"
+                ? {
+                    foreign_keys: foreignKeys,
+                    triggers,
+                    sequences,
+                  }
+                : {}),
             });
           } catch (error) {
             results.push({

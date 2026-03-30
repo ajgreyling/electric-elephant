@@ -1,122 +1,103 @@
-> [!NOTE]  
-> Brought to you by [Bytebase](https://www.bytebase.com/), open-source database DevSecOps platform.
+# Electric Elephant
 
-<p align="center">
-  <img src="assets/badgerlogo.svg" alt="" height="80" style="vertical-align: middle;" />
-  <span style="font-size: 2.5rem; font-weight: 700; vertical-align: middle; margin-left: 0.5rem;">Badger DB MCP</span>
-</p>
+Electric Elephant is a token-efficient MCP server for exploring and querying SQL databases from MCP-capable clients.
+
+Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyling/electric-elephant)
+
+## Purpose
+
+- Expose database access through MCP tools.
+- Support PostgreSQL databases.
+- Provide safe defaults (read-only unless explicitly enabled for destructive SQL).
+- Heuristic PII/clinical guard on `execute_sql` (wildcards and sensitive-looking columns blocked unless explicitly opted in via TOML, env, or CLI — see `docs/tools/execute-sql.mdx` and `CLAUDE.md`).
+
+## Repository Landmarks
+
+- `src/index.ts` - entrypoint and startup path.
+- `src/server.ts` - HTTP MCP transport wiring.
+- `src/connectors/` - database connector implementations.
+- `src/tools/` - MCP tool handlers (`execute_sql`, `search_objects`).
+- `src/config/` - TOML/config loading and validation.
+- `frontend/` - local web workbench UI.
+- `CLAUDE.md` - architecture and development conventions.
+
+## Quick Start
+
+```bash
+pnpm install
+pnpm run dev
+```
+
+Build and test:
+
+```bash
+pnpm run build
+pnpm test
+```
+
+## MCP Request Flow
 
 ```mermaid
 flowchart LR
-    subgraph clients["MCP Clients"]
-        c1[Claude Desktop]
-        c2[Claude Code]
-        c3[Cursor]
-        c4[VS Code]
-        c5[Copilot CLI]
-    end
-
-    S[Badger DB MCP]
-
-    subgraph databases["Databases"]
-        d1[PostgreSQL]
-        d2[SQL Server]
-        d3[SQLite]
-        d4[MySQL]
-        d5[MariaDB]
-    end
-
-    clients --> S
-    S --> databases
+    A[MCP Client] --> B[Transport: stdio or HTTP]
+    B --> C[Tool Router]
+    C --> D{Tool}
+    D -->|execute_sql| E[Connector Manager]
+    D -->|search_objects| E
+    E --> F[Database Connector]
+    F --> G[(Database)]
+    G --> F --> E --> C --> A
 ```
 
-Badger DB MCP is a zero-dependency, token efficient MCP server implementing the Model Context Protocol (MCP) server interface. This lightweight gateway allows MCP-compatible clients to connect to and explore different databases. It is a fork of [DBHub](https://github.com/bytebase/dbhub).
+## Query Execution State Machine
 
-- **Local Development First**: Zero dependency, token efficient with just two MCP tools to maximize context window
-- **Multi-Database**: PostgreSQL, MySQL, MariaDB, SQL Server, and SQLite through a single interface
-- **Multi-Connection**: Connect to multiple databases simultaneously with TOML configuration
-- **Guardrails**: Read-only by default (single-DSN mode); use `--allow-destructive-sql=true` to allow writes. Row limiting and query timeout to prevent runaway operations
-- **Secure Access**: SSH tunneling and SSL/TLS encryption
-
-## Supported Databases
-
-PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite.
-
-## MCP Tools
-
-Badger DB MCP implements MCP tools for database operations:
-
-- **[execute_sql](https://dbhub.ai/tools/execute-sql)**: Execute SQL queries with transaction support and safety controls
-- **[search_objects](https://dbhub.ai/tools/search-objects)**: Search and explore database schemas, tables, columns, indexes, and procedures with progressive disclosure
-- **[Custom Tools](https://dbhub.ai/tools/custom-tools)**: Define reusable, parameterized SQL operations in your `dbhub.toml` configuration file
-
-## Workbench
-
-Badger DB MCP includes a [built-in web interface](https://dbhub.ai/workbench/overview) for interacting with your database tools. It provides a visual way to execute queries, run custom tools, and view request traces without requiring an MCP client.
-
-![workbench](https://raw.githubusercontent.com/bytebase/dbhub/main/docs/images/workbench/workbench.webp)
-
-## Installation
-
-See the full [Installation Guide](https://dbhub.ai/installation) for detailed instructions.
-
-### Quick Start
-
-**Docker:**
-
-```bash
-docker run --rm --init \
-   --name badger-db-mcp \
-   --publish 8080:8080 \
-   bytebase/dbhub \
-   --transport http \
-   --port 8080 \
-   --dsn "postgres://user:password@localhost:5432/dbname?sslmode=disable"
+```mermaid
+stateDiagram-v2
+    [*] --> RequestReceived
+    RequestReceived --> ValidatingInput
+    ValidatingInput --> SelectingSource
+    SelectingSource --> Executing
+    Executing --> FormattingResponse
+    FormattingResponse --> Completed
+    Executing --> Failed
+    ValidatingInput --> Failed
+    Failed --> [*]
+    Completed --> [*]
 ```
 
-**NPM:**
+## Human + AI Agent Onboarding Checklist
 
-```bash
-npx @bytebase/dbhub@latest --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname?sslmode=disable"
+1. Read `CLAUDE.md` before editing connectors/tools.
+2. Prefer tool-level changes in `src/tools/` over transport-layer changes.
+3. Keep `source_id` routing behavior backward compatible.
+4. When changing `execute_sql`, preserve PII guard semantics (`pii-sql-guard.ts`, `pii-heuristics.ts`, `PII_ACCESS_VIOLATION`).
+5. Run relevant tests (`pnpm test`, or targeted connector/integration tests).
+
+## Tool Schema Examples
+
+`execute_sql` input (list explicit columns; `SELECT *` may be rejected when the PII guard is on):
+
+```json
+{
+  "sql": "SELECT id, status FROM users LIMIT 10;"
+}
 ```
 
-**Demo Mode:**
+`search_objects` input:
 
-```bash
-npx @bytebase/dbhub@latest --transport http --port 8080 --demo
+```json
+{
+  "object_type": "column",
+  "schema": "public",
+  "table": "users",
+  "pattern": "%_id",
+  "detail_level": "summary",
+  "limit": 50
+}
 ```
 
-When using a single DSN (no TOML config), the server runs in **read-only mode** by default; only SELECT and other read-only SQL is allowed. Pass `--allow-destructive-sql=true` to allow INSERT/UPDATE/DELETE/MERGE and similar operations.
+## Related Docs
 
-See [Command-Line Options](https://dbhub.ai/config/command-line) for all available parameters.
+- `docs/` for user-facing documentation.
+- `dbhub.toml.example` for multi-source configuration examples.
 
-### Multi-Database Setup
-
-Connect to multiple databases simultaneously using TOML configuration files. Perfect for managing production, staging, and development databases from a single Badger DB MCP instance.
-
-See [Multi-Database Configuration](https://dbhub.ai/config/toml) for complete setup instructions.
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Run in development mode
-pnpm dev
-
-# Build and run for production
-pnpm build && pnpm start --transport stdio --dsn "postgres://user:password@localhost:5432/dbname"
-```
-
-See [Testing](.claude/skills/testing/SKILL.md) and [Debug](https://dbhub.ai/config/debug) for Badger DB MCP.
-
-## Contributors
-
-<a href="https://github.com/bytebase/dbhub/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=bytebase/dbhub" />
-</a>
-
-## Star History
-
-![Star History Chart](https://api.star-history.com/svg?repos=bytebase/dbhub&type=Date)

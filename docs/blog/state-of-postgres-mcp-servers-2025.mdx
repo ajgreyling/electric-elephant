@@ -3,7 +3,7 @@ title: "The State of Postgres MCP Servers in 2025"
 description: "Final piece in our Postgres MCP Server series. A landscape overview of Postgres MCP servers—covering security vulnerabilities, real-world use cases, and what's next."
 ---
 
-![mcp-vs-postgres](https://raw.githubusercontent.com/ajgreyling/badger-db-mcp/main/docs/images/blog/state-of-postgres-mcp-servers-2025/mcp-vs-postgres.webp)
+![mcp-vs-postgres](https://raw.githubusercontent.com/ajgreyling/electric-elephant/main/docs/images/blog/state-of-postgres-mcp-servers-2025/mcp-vs-postgres.webp)
 
 MCP has too many builders and not enough users. PostgreSQL has millions of users but few new tools. The intersection—Postgres MCP servers—is either a perfect match or a niche squared. When Anthropic launched MCP in November 2024, Postgres was among the original six reference implementations. Over the following year, with MCP adopted by OpenAI, Google, and Microsoft, here's where things stand.
 
@@ -16,7 +16,7 @@ Postgres MCP servers fall along two axes: **vendor neutrality** and **database s
 - *Vendor specific*: Supabase MCP Server, Neon MCP Server
 
 **Multi-database servers** support PostgreSQL alongside other engines:
-- *Vendor neutral*: Badger DB MCP
+- *Vendor neutral*: Electric Elephant
 - *Vendor specific*: MCP Toolbox for Databases by Google
 
 ```mermaid
@@ -29,14 +29,14 @@ quadrantChart
     Google MCP Toolbox: [0.3, 0.9]
     Anthropic Postgres MCP: [0.85, 0.1]
     Postgres MCP Pro: [0.85, 0.15]
-    Badger DB MCP: [0.85, 0.6]
+    Electric Elephant: [0.85, 0.6]
 ```
 
 | Product | GitHub Stars | License | Language | Weekly Downloads |
 |---------|--------------|---------|----------|-------------------|
 | [MCP Toolbox for Databases](https://github.com/googleapis/genai-toolbox) | 12k | Apache-2.0 | Go | N/A |
 | [Supabase MCP Server](https://github.com/supabase-community/supabase-mcp) | 2.4k | Apache-2.0 | TypeScript | 20k |
-| [Badger DB MCP](https://github.com/ajgreyling/badger-db-mcp) | 1.8k | MIT | TypeScript | 5k |
+| [Electric Elephant](https://github.com/ajgreyling/electric-elephant) | 1.8k | MIT | TypeScript | 5k |
 | [Postgres MCP Pro](https://github.com/crystaldba/postgres-mcp) | 1.7k | MIT | Python | 2.5k |
 | [Neon MCP Server](https://github.com/neondatabase/mcp-server-neon) | 0.5k | MIT | TypeScript | 0.6k |
 | [Anthropic Postgres MCP](https://github.com/modelcontextprotocol/servers-archived) | Archived | MIT | TypeScript | 15k |
@@ -69,7 +69,7 @@ Every Postgres MCP server has these vulnerabilities. The question is what limits
 
 ## Where Postgres MCP Servers Work
 
-I maintain Badger DB MCP and have tested various use cases. The one that actually works well: local development.
+I maintain Electric Elephant and have tested various use cases. The one that actually works well: local development.
 
 ```bash
 ⏺ Bash(npm run db:generate)
@@ -99,7 +99,7 @@ I maintain Badger DB MCP and have tested various use cases. The one that actuall
 
 ⏺ Excellent! The migration has been applied successfully. Now let's verify the schema creation by checking the database:
 
-⏺ badger-db-mcp - Search Database Objects (postgres) (MCP)(object_type: "table", pattern: "%", detail_level: "summary")
+⏺ electric-elephant - Search Database Objects (postgres) (MCP)(object_type: "table", pattern: "%", detail_level: "summary")
   ⎿  {
        "success": true,
        "data": {
@@ -108,7 +108,7 @@ I maintain Badger DB MCP and have tested various use cases. The one that actuall
 ⏺ Perfect! All three tables have been created in the public schema.
 ```
 
-This is a Claude Code session with Badger DB MCP. I'm adding org/project models to a SaaS app. After generating the Drizzle migration, Claude automatically calls Badger DB MCP to verify the schema was created correctly. That feedback loop—generate, apply, verify—is what MCP enables.
+This is a Claude Code session with Electric Elephant. I'm adding org/project models to a SaaS app. After generating the Drizzle migration, Claude automatically calls Electric Elephant to verify the schema was created correctly. That feedback loop—generate, apply, verify—is what MCP enables.
 
 ## What's Next for Postgres MCP Servers?
 
@@ -178,7 +178,7 @@ Databases guard data. AI agents follow instructions. Making them coexist is the 
 
 1. [MCP Toolbox for Databases](/blog/postgres-mcp-server-review-mcp-toolbox) - Google's multi-database MCP server with 40+ data source support
 2. [Supabase MCP Server](/blog/postgres-mcp-server-review-supabase-mcp) - Hosted MCP server for Supabase projects
-3. [Badger DB MCP](/blog/postgres-mcp-server-review-badger-db-mcp) - Zero-dependency, token efficient MCP server for PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite
+3. [Electric Elephant](/blog/postgres-mcp-server-review-badger-db-mcp) - Zero-dependency, token efficient MCP server for PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite
 4. **The State of Postgres MCP Servers** (this article) - Landscape overview and future outlook
 
 

@@ -1,15 +1,15 @@
 ---
-title: "Postgres MCP Server Review - Badger DB MCP Design Explained"
-description: "A maintainer's deep-dive into Badger DB MCP—a zero-dependency, token efficient MCP server for PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite with consistent guardrails."
+title: "Postgres MCP Server Review - Electric Elephant Design Explained"
+description: "A maintainer's deep-dive into Electric Elephant—a zero-dependency, token efficient MCP server for PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite with consistent guardrails."
 ---
 
 _Last updated: Dec 28, 2025_
 
-This is the third in a series reviewing Postgres MCP servers. Here we—the Badger DB MCP maintainers—explain the design behind [Badger DB MCP](https://github.com/ajgreyling/badger-db-mcp), a zero-dependency, token efficient MCP server that connects AI assistants to PostgreSQL, MySQL, MariaDB, SQL Server, and SQLite. We'll cover our design decisions, trade-offs, and where Badger DB MCP falls short compared to alternatives.
+This is the third in a series reviewing Postgres MCP servers. Here we—the Electric Elephant maintainers—explain the design behind [Electric Elephant](https://github.com/ajgreyling/electric-elephant), a zero-dependency, token efficient MCP server that connects AI assistants to PostgreSQL, MySQL, MariaDB, SQL Server, and SQLite. We'll cover our design decisions, trade-offs, and where Electric Elephant falls short compared to alternatives.
 
 - **GitHub Stars**
 
-    [![Star History Chart](https://api.star-history.com/svg?repos=ajgreyling/badger-db-mcp&type=date&legend=top-left)](https://www.star-history.com/#ajgreyling/badger-db-mcp&type=date&legend=top-left)
+    [![Star History Chart](https://api.star-history.com/svg?repos=ajgreyling/electric-elephant&type=date&legend=top-left)](https://www.star-history.com/#ajgreyling/electric-elephant&type=date&legend=top-left)
 
 - **License:** MIT
 - **Language:** TypeScript
@@ -34,23 +34,23 @@ With local development as the primary use case, our design objectives are:
 <Note>Testing on Mac (Apple Silicon), same as the other reviews in this series.</Note>
 
 ```bash
-npx badger-db-mcp --dsn "postgres://user:password@localhost:5432/dbname"
+npx electric-elephant --dsn "postgres://user:password@localhost:5432/dbname"
 ```
 
-One command, no configuration file required. Unlike MCP Toolbox which requires a YAML config file upfront, Badger DB MCP works directly with a DSN. 
+One command, no configuration file required. Unlike MCP Toolbox which requires a YAML config file upfront, Electric Elephant works directly with a DSN. 
 Configuration files are optional—use them when you need advanced settings.
 
-For those who want to try Badger DB MCP without setting up a database first:
+For those who want to try Electric Elephant without setting up a database first:
 
 ```bash
-npx badger-db-mcp --demo
+npx electric-elephant --demo
 ```
 
-This starts Badger DB MCP with a bundled SQLite employee database—useful for exploring the MCP integration before connecting to your own databases.
+This starts Electric Elephant with a bundled SQLite employee database—useful for exploring the MCP integration before connecting to your own databases.
 
 ## Tools
 
-Badger DB MCP provides two built-in tools:
+Electric Elephant provides two built-in tools:
 
 | Tool | Purpose |
 |------|---------|
@@ -75,7 +75,7 @@ allowed_values = ["engineering", "sales", "support"]
 
 ## Token Efficiency
 
-Token efficiency is Badger DB MCP's key design objective. This matters for two reasons:
+Token efficiency is Electric Elephant's key design objective. This matters for two reasons:
 
 1. **Longer sessions without compaction**: Every token spent on tool definitions is a token unavailable for your actual work. Fewer tool tokens means more room for code, queries, and conversation history before hitting context limits.
 
@@ -83,7 +83,7 @@ Token efficiency is Badger DB MCP's key design objective. This matters for two r
 
 ### Minimized Tool Load
 
-Badger DB MCP loads only 2 built-in tools with 1.4k tokens by default:
+Electric Elephant loads only 2 built-in tools with 1.4k tokens by default:
 
 ```bash
 > /context
@@ -101,8 +101,8 @@ Badger DB MCP loads only 2 built-in tools with 1.4k tokens by default:
      ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝   ⛝ Autocompact buffer: 45.0k tokens (22.5%)
 
      MCP tools · /mcp
-     └ mcp__badger-db-mcp__execute_sql: 607 tokens
-     └ mcp__badger-db-mcp__search_objects: 817 tokens
+     └ mcp__electric-elephant__execute_sql: 607 tokens
+     └ mcp__electric-elephant__search_objects: 817 tokens
 ```
 
 You can further reduce this by exposing only specific tools. For example, to expose only `execute_sql`:
@@ -121,7 +121,7 @@ source = "prod"
 
 | MCP Server | Default Config | Minimal Config |
 |------------|----------------|----------------|
-| Badger DB MCP | **1.4k** (2 tools) | **607** (1 tool) |
+| Electric Elephant | **1.4k** (2 tools) | **607** (1 tool) |
 | MCP Toolbox | 19.0k (28 tools) | 579 (1 tool) |
 | Supabase MCP | 19.3k (all features) | 3.1k (5 tools) |
 
@@ -134,7 +134,7 @@ The built-in `search_objects` tool supports [progressive disclosure](https://www
 - `summary`: Adds metadata (row counts, column counts)
 - `full`: Complete structure with all columns and indexes
 
-| Scenario | Traditional Approach | Badger DB MCP Approach |
+| Scenario | Traditional Approach | Electric Elephant Approach |
 |----------|---------------------|------------------------|
 | Find "users" table in 500 tables | List all tables with full schema | `search_objects(pattern="users", detail_level="names")` |
 | Explore table structure | Separate tool calls for columns, indexes | `search_objects(pattern="users", detail_level="full")` |
@@ -142,47 +142,47 @@ The built-in `search_objects` tool supports [progressive disclosure](https://www
 
 ## Guardrails & Security
 
-Badger DB MCP supports advanced settings via TOML configuration:
+Electric Elephant supports advanced settings via TOML configuration:
 
-- **Read-only mode**: Keyword filtering to restrict SQL execution. This is a limitation—Supabase MCP guarantees read-only via a dedicated `supabase_read_only_user`, while Badger DB MCP requires user discipline to supply a read-only database user for true guarantee.
+- **Read-only mode**: Keyword filtering to restrict SQL execution. This is a limitation—Supabase MCP guarantees read-only via a dedicated `supabase_read_only_user`, while Electric Elephant requires user discipline to supply a read-only database user for true guarantee.
 
-- **Row limiting**: Prevent accidental large data retrieval with `max_rows`. If your query already has a `LIMIT` clause, Badger DB MCP uses the smaller value.
+- **Row limiting**: Prevent accidental large data retrieval with `max_rows`. If your query already has a `LIMIT` clause, Electric Elephant uses the smaller value.
 
 - **Connection and query timeouts**: Prevent runaway queries and connection hangs with `connection_timeout` and `query_timeout` settings.
 
 - **SSH tunneling**: Connect through bastion hosts for databases not exposed to the public internet. Supports ProxyJump for multi-hop connections and automatic `~/.ssh/config` parsing.
 
-**What's missing**: Authentication. Unlike MCP Toolbox which provides Google Auth, or Supabase MCP which integrates OAuth with its hosted service, Badger DB MCP doesn't provide any auth yet (we're planning to support vendor-neutral authentication such as Keycloak).
+**What's missing**: Authentication. Unlike MCP Toolbox which provides Google Auth, or Supabase MCP which integrates OAuth with its hosted service, Electric Elephant doesn't provide any auth yet (we're planning to support vendor-neutral authentication such as Keycloak).
 
 ## Workbench
 
-Badger DB MCP includes a [built-in web interface](/workbench/overview) with two main features:
+Electric Elephant includes a [built-in web interface](/workbench/overview) with two main features:
 
 1. **Tool Execution**: Run database tools directly from your browser—useful for testing and debugging without an MCP client. Custom tools render as constrained forms with validated inputs.
 
-    ![workbench](https://raw.githubusercontent.com/ajgreyling/badger-db-mcp/main/docs/images/workbench/custom-tool.webp)
+    ![workbench](https://raw.githubusercontent.com/ajgreyling/electric-elephant/main/docs/images/workbench/custom-tool.webp)
 
-1. **Request Traces**: Inspect MCP requests to understand how AI agents interact with Badger DB MCP.
+1. **Request Traces**: Inspect MCP requests to understand how AI agents interact with Electric Elephant.
 
-    ![request-trace](https://raw.githubusercontent.com/ajgreyling/badger-db-mcp/main/docs/images/workbench/request-trace.webp)
+    ![request-trace](https://raw.githubusercontent.com/ajgreyling/electric-elephant/main/docs/images/workbench/request-trace.webp)
 
 ## Summary
 
-**Badger DB MCP** is a zero-dependency, token efficient MCP server for relational databases with guardrails.
+**Electric Elephant** is a zero-dependency, token efficient MCP server for relational databases with guardrails.
 
 ### The Good
 
 - **Minimal design**: Zero dependency with just 2 general tools (`execute_sql`, `search_objects`) using 1.4k tokens—13-14x fewer than alternatives. Tools can also be customized and cherry-picked via configuration.
 
-- **Vendor neutral**: Unlike Supabase MCP (Supabase-only) or MCP Toolbox (tilted toward Google Cloud), Badger DB MCP works with any deployment—cloud, on-premise, or local.
+- **Vendor neutral**: Unlike Supabase MCP (Supabase-only) or MCP Toolbox (tilted toward Google Cloud), Electric Elephant works with any deployment—cloud, on-premise, or local.
 
-- **Multi-database with consistent guardrails**: Not limited to a single Postgres database, but we don't expand beyond the database boundary either. This focus lets us provide consistent guardrails across all supported databases: read-only mode, row limits, connection/query timeouts.
+- **Multi-database with consistent guardrails**: Not limited to a single Postgres database, but we don't expand beyond the database boundary either. This focus lets us provide consistent guardrails across all supported databases: read-only mode, row limits, connection/query timeouts, and (Electric Elephant) fail-closed PII/clinical heuristics on `execute_sql` unless `allow_access_to_pii_data` is explicitly enabled.
 
 ### The Bad
 
-- **No platform integration**: MCP Toolbox integrates with Gemini and Google Cloud services. Supabase MCP connects to its hosted platform with OAuth. Badger DB MCP is standalone.
+- **No platform integration**: MCP Toolbox integrates with Gemini and Google Cloud services. Supabase MCP connects to its hosted platform with OAuth. Electric Elephant is standalone.
 
-- **No built-in authentication**: Unlike MCP Toolbox's Google auth support or Supabase's OAuth, Badger DB MCP has no auth layer. You'll need a reverse proxy or network security for multi-tenant scenarios.
+- **No built-in authentication**: Unlike MCP Toolbox's Google auth support or Supabase's OAuth, Electric Elephant has no auth layer. You'll need a reverse proxy or network security for multi-tenant scenarios.
 
 ### Should You Use It?
 
@@ -193,12 +193,12 @@ quadrantChart
     y-axis Postgres-Specific --> Data Source Agnostic
     Supabase MCP Server: [0.1, 0.1]
     MCP Toolbox: [0.3, 0.9]
-    Badger DB MCP: [0.85, 0.6]
+    Electric Elephant: [0.85, 0.6]
 ```
 
-**If you're an AI-assisted developer working with local databases**, Badger DB MCP is built for you. It's optimized for the local development workflow—zero setup friction, minimal token overhead, and no authentication complexity. Works with PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite out of the box.
+**If you're an AI-assisted developer working with local databases**, Electric Elephant is built for you. It's optimized for the local development workflow—zero setup friction, minimal token overhead, and no authentication complexity. Works with PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite out of the box.
 
-**If you need a vendor-neutral solution**, Badger DB MCP is the only option that isn't tied to a specific cloud platform. Unlike Supabase MCP (Supabase-only) or MCP Toolbox (tilted toward Google Cloud), Badger DB MCP works anywhere your database runs.
+**If you need a vendor-neutral solution**, Electric Elephant is the only option that isn't tied to a specific cloud platform. Unlike Supabase MCP (Supabase-only) or MCP Toolbox (tilted toward Google Cloud), Electric Elephant works anywhere your database runs.
 
 **If you need integrated platform experience such as built-in authentication**, look at Supabase MCP (for Supabase projects with OAuth) or MCP Toolbox (for Gemini and Google Cloud services).
 
@@ -209,5 +209,5 @@ quadrantChart
 
 1. [MCP Toolbox for Databases](/blog/postgres-mcp-server-review-mcp-toolbox) - Google's multi-database MCP server with 40+ data source support
 2. [Supabase MCP Server](/blog/postgres-mcp-server-review-supabase-mcp) - Hosted MCP server for Supabase projects
-3. **Badger DB MCP** (this article) - Zero-dependency, token efficient MCP server for PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite
+3. **Electric Elephant** (this article) - Zero-dependency, token efficient MCP server for PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite
 4. [The State of Postgres MCP Servers](/blog/state-of-postgres-mcp-servers-2025) - Landscape overview and future outlook

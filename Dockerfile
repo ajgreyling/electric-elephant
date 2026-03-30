@@ -26,12 +26,12 @@ COPY . .
 RUN pnpm run build
 
 # Deploy production dependencies to a clean directory
-# - --filter=badger-db-mcp: Only deploy dependencies for the main package (not frontend)
+# - --filter=electric-elephant: Only deploy dependencies for the main package (not frontend)
 # - --prod: Only production dependencies (no devDependencies)
 # - --legacy: Use legacy deploy mode for pnpm v10 workspace compatibility
 # This creates a more efficient node_modules structure
-# by copying only what's needed from the pnpm store to /prod/badger-db-mcp
-RUN pnpm deploy --filter=badger-db-mcp --prod --legacy /prod/badger-db-mcp
+# by copying only what's needed from the pnpm store to /prod/electric-elephant
+RUN pnpm deploy --filter=electric-elephant --prod --legacy /prod/electric-elephant
 
 # ============================================================================
 # Production Stage: Minimal runtime image
@@ -43,8 +43,8 @@ WORKDIR /app
 # Copy optimized production dependencies from deploy directory
 # This includes node_modules with an efficient .pnpm store structure
 # Smaller than a standard pnpm install --prod
-COPY --from=builder /prod/badger-db-mcp/node_modules ./node_modules
-COPY --from=builder /prod/badger-db-mcp/package.json ./
+COPY --from=builder /prod/electric-elephant/node_modules ./node_modules
+COPY --from=builder /prod/electric-elephant/package.json ./
 
 # Copy built application from builder stage
 # This includes both backend (dist/*.js) and frontend (dist/public/*)

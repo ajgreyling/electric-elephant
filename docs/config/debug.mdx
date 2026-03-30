@@ -6,16 +6,16 @@ title: "Debug"
 
 The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a web-based debugging tool for testing and inspecting MCP servers. It's useful for:
 
-- Testing Badger DB MCP server functionality before integrating with AI tools
+- Testing Electric Elephant server functionality before integrating with AI tools
 - Debugging connection issues
 - Exploring available resources and tools
 - Verifying SQL query execution
 
-Start Badger DB MCP with HTTP transport:
+Start Electric Elephant with HTTP transport:
 
 ```bash
-# Start Badger DB MCP with HTTP transport
-npx badger-db-mcp --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/mydb"
+# Start Electric Elephant with HTTP transport
+npx electric-elephant --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/mydb"
 
 # Start the MCP Inspector in another terminal
 npx @modelcontextprotocol/inspector
@@ -23,27 +23,27 @@ npx @modelcontextprotocol/inspector
 
 The inspector will open in your browser where you can connect to `http://localhost:8080/mcp` and test all available tools and resources.
 
-![MCP Inspector with Badger DB MCP](https://raw.githubusercontent.com/ajgreyling/badger-db-mcp/main/docs/images/mcp-inspector.webp)
+![MCP Inspector with Electric Elephant](https://raw.githubusercontent.com/ajgreyling/electric-elephant/main/docs/images/mcp-inspector.webp)
 
 ## Troubleshooting
 
 ### Connection Issues
 
-If you can't connect to DBHub:
+If you can't connect to Electric Elephant:
 
-1. Verify Badger DB MCP is running with HTTP transport (`--transport http`)
+1. Verify Electric Elephant is running with HTTP transport (`--transport http`)
 2. Check the port matches (default: 8080)
 3. Ensure no firewall is blocking the connection
 4. Test the endpoint directly: `curl http://localhost:8080/mcp`
 
 ### Database Connection Errors
 
-If Badger DB MCP connects but database queries fail:
+If Electric Elephant connects but database queries fail:
 
 1. Verify your DSN connection string is correct
 2. Test the database connection with a native client
 3. Check database user permissions
-4. Review Badger DB MCP logs for specific error messages
+4. Review Electric Elephant logs for specific error messages
 
 ### Logs
 
@@ -51,5 +51,5 @@ Enable verbose logging to troubleshoot issues:
 
 ```bash
 # Set log level to debug
-npx badger-db-mcp --transport http --port 8080 --dsn "your-dsn" --log-level debug
+npx electric-elephant --transport http --port 8080 --dsn "your-dsn" --log-level debug
 ```

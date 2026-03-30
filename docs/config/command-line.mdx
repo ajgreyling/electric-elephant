@@ -2,7 +2,7 @@
 title: "Command-Line Options"
 ---
 
-Badger DB MCP supports three configuration methods with the following priority order:
+Electric Elephant supports three configuration methods with the following priority order:
 
 1. **Command-line arguments** (highest priority)
 2. **TOML configuration file** (if `--config` is provided or `./dbhub.toml` exists)
@@ -11,7 +11,7 @@ Badger DB MCP supports three configuration methods with the following priority o
 
 This page covers command-line flags and environment variables. For TOML configuration, see [TOML Configuration](/config/toml).
 
-Command-line flags are passed when starting Badger DB MCP. These have the highest priority and override all other configuration methods.
+Command-line flags are passed when starting Electric Elephant. These have the highest priority and override all other configuration methods.
 
 ### --transport
 
@@ -33,10 +33,10 @@ Command-line flags are passed when starting Badger DB MCP. These have the highes
   ```bash
   # stdio (default) - for Claude Desktop, Claude Code, Cursor
   # No HTTP server started
-  npx badger-db-mcp --transport stdio --dsn "..."
+  npx electric-elephant --transport stdio --dsn "..."
 
   # http - for web clients, workbench, and remote access
-  npx badger-db-mcp --transport http --port 8080 --dsn "..."
+  npx electric-elephant --transport http --port 8080 --dsn "..."
   ```
 </ParamField>
 
@@ -46,7 +46,7 @@ Command-line flags are passed when starting Badger DB MCP. These have the highes
   HTTP server port. Only used when `--transport=http`. Ignored for stdio transport.
 
   ```bash
-  npx badger-db-mcp --transport http --port 3000 --dsn "..."
+  npx electric-elephant --transport http --port 3000 --dsn "..."
   ```
 </ParamField>
 
@@ -160,20 +160,20 @@ Command-line flags are passed when starting Badger DB MCP. These have the highes
   export DB_USER=myuser
   export DB_PASSWORD='p@ss:word#123'
   export DB_NAME=mydb
-  npx badger-db-mcp
+  npx electric-elephant
   ```
 </ParamField>
 
 ### --id
 
 <ParamField path="--id" type="string" env="ID">
-  Instance identifier to suffix tool names. Useful when running multiple Badger DB MCP instances (e.g., in Cursor).
+  Instance identifier to suffix tool names. Useful when running multiple Electric Elephant instances (e.g., in Cursor).
 
   Tools will be named `execute_sql_{id}` for each instance.
 
   ```bash
-  npx badger-db-mcp --id prod --dsn "postgres://user:pass@prod-host:5432/db"
-  npx badger-db-mcp --id staging --dsn "postgres://user:pass@staging-host:5432/db"
+  npx electric-elephant --id prod --dsn "postgres://user:pass@prod-host:5432/db"
+  npx electric-elephant --id staging --dsn "postgres://user:pass@staging-host:5432/db"
   ```
 
   Result: `execute_sql_prod` and `execute_sql_staging` tools
@@ -186,10 +186,10 @@ Command-line flags are passed when starting Badger DB MCP. These have the highes
 ### --demo
 
 <ParamField path="--demo" type="boolean" default="false">
-  Run Badger DB MCP with a bundled SQLite sample "employee" database for testing.
+  Run Electric Elephant with a bundled SQLite sample "employee" database for testing.
 
   ```bash
-  npx badger-db-mcp --demo --transport http --port 8080
+  npx electric-elephant --demo --transport http --port 8080
   ```
 </ParamField>
 
@@ -201,7 +201,7 @@ Command-line flags are passed when starting Badger DB MCP. These have the highes
   Automatically loads `./dbhub.toml` if it exists in the current directory.
 
   ```bash
-  npx badger-db-mcp --config ./dbhub.toml --transport http --port 8080
+  npx electric-elephant --config ./dbhub.toml --transport http --port 8080
   ```
 
   See [TOML Configuration](/config/toml) for complete configuration reference including source options, tool options, SSH tunnels, and custom tools.
@@ -233,30 +233,53 @@ SSH tunnel configuration for connecting to databases through bastion/jump hosts.
 
 ```bash
 # Password auth
-npx badger-db-mcp --dsn "..." \
+npx electric-elephant --dsn "..." \
   --ssh-host bastion.example.com --ssh-user ubuntu --ssh-password mypassword
 
 # Key-based auth
-npx badger-db-mcp --dsn "..." \
+npx electric-elephant --dsn "..." \
   --ssh-host bastion.example.com --ssh-user ubuntu --ssh-key ~/.ssh/id_rsa
 
 # ProxyJump (single hop)
-npx badger-db-mcp --dsn "..." \
+npx electric-elephant --dsn "..." \
   --ssh-host target.internal --ssh-proxy-jump bastion.example.com
 
 # ProxyJump (multi-hop: bastion1 → bastion2 → target)
-npx badger-db-mcp --dsn "..." \
+npx electric-elephant --dsn "..." \
   --ssh-host target.internal --ssh-proxy-jump "bastion1.com,admin@bastion2:2222"
 
 # SSH config alias (resolves host, user, key, and ProxyJump from ~/.ssh/config)
-npx badger-db-mcp --dsn "..." --ssh-host mybastion
+npx electric-elephant --dsn "..." --ssh-host mybastion
 ```
 
 <Note>
-- When `--ssh-host` is a plain alias (no dots, not an IP address), Badger DB MCP automatically resolves it from `~/.ssh/config`, reading the `Hostname`, `User`, `IdentityFile`, and `ProxyJump` directives. Explicit flags always override values from the config file.
+- When `--ssh-host` is a plain alias (no dots, not an IP address), Electric Elephant automatically resolves it from `~/.ssh/config`, reading the `Hostname`, `User`, `IdentityFile`, and `ProxyJump` directives. Explicit flags always override values from the config file.
 - ProxyCommand is not supported (requires shell execution). Use ProxyJump instead.
 - Path expansion for `~/` is supported in file paths.
 </Note>
+
+## PII and clinical data guard (execute_sql) {#pii-guard-cli}
+
+Single-DSN mode (`--dsn` / env without `--config`) uses the same default as TOML: **`execute_sql` does not allow PII/clinical-sensitive projections** unless you opt in.
+
+**Ways to opt in**
+
+- **TOML (recommended, including multi-source):** `allow_access_to_pii_data = true` on the `[[tools]]` entry for `execute_sql` — see [TOML — allow_access_to_pii_data](/config/toml#allow_access_to_pii_data).
+- **Environment (single-DSN only):** `ALLOW_ACCESS_TO_PII_DATA=true` (also accepts `1` or `yes`, case-insensitive).
+- **CLI (single-DSN only):** `--allow-access-to-pii-data=true` overrides env when set. A bare `--allow-access-to-pii-data` does **not** enable access.
+
+For behavior, error code `PII_ACCESS_VIOLATION`, and examples, see [Execute SQL — PII and clinical data guard](/tools/execute-sql#pii-and-clinical-data-guard).
+
+### --allow-access-to-pii-data
+
+<ParamField path="--allow-access-to-pii-data" type="string" env="ALLOW_ACCESS_TO_PII_DATA">
+  **Single-DSN mode only** (not used with `--config` / TOML). When set to the literal value `true`, allows `execute_sql` to bypass the PII/clinical projection guard. Prefer TOML per-source tool config when using multiple databases.
+
+  ```bash
+  ALLOW_ACCESS_TO_PII_DATA=true npx electric-elephant --dsn "postgres://..."
+  npx electric-elephant --dsn "postgres://..." --allow-access-to-pii-data=true
+  ```
+</ParamField>
 
 ## Quick Reference
 
@@ -267,6 +290,7 @@ npx badger-db-mcp --dsn "..." --ssh-host mybastion
 | `--demo` | - | boolean | Use sample employee database |
 | `--id` | `ID` | string | Instance identifier for tool names |
 | `--config` | - | string | Path to TOML config file (default: `./dbhub.toml`) |
+| `--allow-access-to-pii-data` | `ALLOW_ACCESS_TO_PII_DATA` | string | Single-DSN only: must be `=true` to allow sensitive projections on `execute_sql` |
 | `--dsn` | `DSN` | string | Database connection string (required unless using `--demo` or `--config`) |
 | - | `DB_TYPE` | string | Database type |
 | - | `DB_HOST` | string | Database hostname |

@@ -1,11 +1,11 @@
 ---
 name: fix-bug
-description: Use when given a GitHub issue URL or number to investigate and implement a fix. Triggers on "fix issue", "fix bug", "fix #123", GitHub issue URLs, or any request to resolve a reported problem from a GitHub issue. Also triggers when asked to investigate errors, diagnose failures, or debug unexpected behavior in Badger DB MCP.
+description: Use when given a GitHub issue URL or number to investigate and implement a fix. Triggers on "fix issue", "fix bug", "fix #123", GitHub issue URLs, or any request to resolve a reported problem from a GitHub issue. Also triggers when asked to investigate errors, diagnose failures, or debug unexpected behavior in Electric Elephant.
 ---
 
 # Fix Bug from GitHub Issue
 
-Systematic workflow for turning a GitHub issue into a working fix in the Badger DB MCP codebase.
+Systematic workflow for turning a GitHub issue into a working fix in the Electric Elephant codebase.
 
 ## Workflow
 
@@ -32,23 +32,24 @@ gh issue view 123 --repo owner/repo --json title,body,labels,comments,state
 Extract from the issue:
 - **What's broken**: Expected vs actual behavior
 - **Reproduction steps**: How to trigger the bug
-- **Environment**: Database type, connection method (DSN, SSH tunnel, TOML config), transport (stdio/HTTP)
+- **Environment**: PostgreSQL version/context, connection method (DSN, SSH tunnel, TOML config), transport (stdio/HTTP)
 - **Labels/comments**: May reveal affected area or prior investigation
 - **Linked PRs/issues**: Check for related context
 
 ## Step 3: Locate Relevant Code
 
-Use the issue details to identify which part of the codebase is affected. Badger DB MCP has a clear modular structure — most bugs fall into one of these areas:
+Use the issue details to identify which part of the codebase is affected. Electric Elephant has a clear modular structure — most bugs fall into one of these areas:
 
 | Bug Category | Where to Look | Key Files |
 |-------------|--------------|-----------|
-| Connection failures | Connector implementations | `src/connectors/{db-type}/index.ts`, `src/connectors/manager.ts` |
+| Connection failures | Connector implementations | `src/connectors/postgres/index.ts`, `src/connectors/manager.ts` |
 | SQL execution errors | Tool handlers | `src/tools/execute-sql.ts`, `src/utils/allowed-keywords.ts` |
+| `PII_ACCESS_VIOLATION` / blocked SELECT lists | PII guard | `src/utils/pii-sql-guard.ts`, `src/utils/pii-heuristics.ts`, `src/tools/execute-sql.ts` |
 | Schema/table listing | Search tool | `src/tools/search-objects.ts` |
-| DSN parsing issues | Parser logic | `src/connectors/{db-type}/index.ts` (DSNParser), `src/utils/dsn-obfuscate.ts`, `src/utils/safe-url.ts` |
+| DSN parsing issues | Parser logic | `src/connectors/postgres/index.ts` (DSNParser), `src/utils/dsn-obfuscate.ts`, `src/utils/safe-url.ts` |
 | SSH tunnel problems | Tunnel utilities | `src/utils/ssh-tunnel.ts`, `src/utils/ssh-config-parser.ts` |
 | TOML config issues | Config loading | `src/config/toml-loader.ts`, `src/types/config.ts` |
-| Multi-database routing | Manager & tools | `src/connectors/manager.ts`, `src/utils/tool-handler-helpers.ts` |
+| Multi-source PostgreSQL routing | Manager & tools | `src/connectors/manager.ts`, `src/utils/tool-handler-helpers.ts` |
 | Custom tool issues | Custom handler | `src/tools/custom-tool-handler.ts`, `src/tools/registry.ts` |
 | HTTP transport | Server setup | `src/server.ts` |
 | Read-only violations | SQL validation | `src/utils/allowed-keywords.ts`, `src/utils/sql-parser.ts` |
@@ -61,13 +62,13 @@ Search for error messages, function names, or file paths mentioned in the issue.
 ## Step 4: Reproduce
 
 **If integration tests exist for the area:**
-Write a failing test that captures the bug. Badger DB MCP's test infrastructure makes this straightforward:
+Write a failing test that captures the bug. Electric Elephant's test infrastructure makes this straightforward:
 - Database connector bugs → extend existing integration test in `src/connectors/__tests__/`
 - Utility bugs → add cases to existing unit tests in `src/utils/__tests__/`
 - Tool handler bugs → add to `src/tools/__tests__/`
 - Config bugs → add to `src/config/__tests__/`
 
-Use the test fixtures in `src/__fixtures__/` for multi-database or readonly/max_rows scenarios.
+Use the test fixtures in `src/__fixtures__/` for multi-source PostgreSQL or readonly/max_rows scenarios.
 
 **If no test infrastructure applies:**
 Trace the code path and confirm the logic flaw by reading.
@@ -145,4 +146,4 @@ Check that:
 - **Skipping reproduction**: A fix without a repro is a guess
 - **Scope creep**: Fix the reported issue, don't refactor surrounding code
 - **Missing edge cases**: Check if the fix handles related scenarios mentioned in comments
-- **Not testing with the right database**: If the bug is database-specific, test with that connector
+- **Not testing with PostgreSQL context**: If the bug is PostgreSQL-specific, test the PostgreSQL connector path directly

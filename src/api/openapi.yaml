@@ -36,12 +36,12 @@ paths:
                       port: 5432
                       database: production
                       user: dbuser
-                    - id: staging_mysql
-                      type: mysql
+                    - id: staging_pg
+                      type: postgres
                       host: localhost
-                      port: 3306
+                      port: 5432
                       database: staging
-                      user: root
+                      user: dbuser
                 emptySources:
                   summary: No sources configured
                   value: []
@@ -102,7 +102,7 @@ components:
           example: Production read replica for analytics queries
         type:
           type: string
-          enum: [postgres, mysql, mariadb, sqlserver, sqlite]
+          enum: [postgres]
           description: Database type
           example: postgres
         host:
@@ -185,6 +185,12 @@ components:
           type: integer
           description: Maximum number of rows returned by SELECT queries (execute_sql and custom tools only)
           example: 1000
+        allow_access_to_pii_data:
+          type: boolean
+          description: >
+            For execute_sql only. When false or omitted, the server rejects queries that project wildcards (* or table.*)
+            or columns/CASE expressions that match PII or sensitive clinical heuristics. Set true only with explicit approval.
+          example: false
 
     ToolParameter:
       type: object

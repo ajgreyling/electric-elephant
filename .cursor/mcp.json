@@ -3,7 +3,7 @@
     "db-chatbot-staging-sams-sedfa": {
       "command": "npx",
       "args": [
-        "badger-db-mcp",
+        "electric-elephant",
         "--transport",
         "stdio",
         "--dsn",

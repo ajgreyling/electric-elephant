@@ -25,31 +25,27 @@ const packageJsonPath = path.join(__dirname, "..", "package.json");
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 
 // Server info
-export const SERVER_NAME = "Badger DB MCP Server";
+export const SERVER_NAME = "Electric Elephant MCP Server";
 export const SERVER_VERSION = packageJson.version;
 
 /**
  * Generate ASCII art banner with version information
  */
 export function generateBanner(version: string, modes: string[] = []): string {
-  // Create a mode string that includes all active modes
-  const modeText = modes.length > 0 ? ` [${modes.join(' | ')}]` : '';
-
-  return `
-  _               _                 
- | |             | |                
- | |__   __ _  __| | __ _  ___ _ __ 
- | '_ \\ / _\` |/ _\` |/ _\` |/ _ \\ '__|
- | |_) | (_| | (_| | (_| |  __/ |   
- |_.__/ \\__,_|\\__,_|\\__, |\\___|_|   
-                     __/ |          
-                    |___/           
-v${version}${modeText} - Minimal Database MCP Server
-`;
+  const modeText = modes.length > 0 ? ` [${modes.join(" | ")}]` : "";
+  const art = [
+    "      _           _        _             _            _                 _   ",
+    "  ___| | ___  ___| |_ _ __(_) ___    ___| | ___ _ __ | |__   __ _ _ __ | |_ ",
+    " / _ \\ |/ _ \\/ __| __| '__| |/ __|  / _ \\ |/ _ \\ '_ \\| '_ \\ / _` | '_ \\| __|",
+    "|  __/ |  __/ (__| |_| |  | | (__  |  __/ |  __/ |_) | | | | (_| | | | | |_ ",
+    " \\___|_|\\___|\\___|\\__|_|  |_|\\___|  \\___|_|\\___| .__/|_| |_|\\__,_|_| |_|\\__|",
+    "                                               |_|                          ",
+  ].join("\n");
+  return `\n${art}\nv${version}${modeText} - PostgreSQL-Only, Readonly-First MCP Server\n`;
 }
 
 /**
- * Initialize and start the DBHub server
+ * Initialize and start the Electric Elephant MCP server
  */
 export async function main(): Promise<void> {
   try {
@@ -64,13 +60,12 @@ export async function main(): Promise<void> {
 
       console.error(`
 ERROR: Database connection configuration is required.
-Please provide configuration in one of these ways (in order of priority):
+Please provide PostgreSQL configuration in one of these ways (in order of priority):
 
-1. Use demo mode: --demo (uses in-memory SQLite with sample employee database)
-2. TOML config file: --config=path/to/dbhub.toml or ./dbhub.toml
-3. Command line argument: --dsn="your-connection-string"
-4. Environment variable: export DSN="your-connection-string"
-5. .env file: DSN=your-connection-string
+1. TOML config file: --config=path/to/dbhub.toml or ./dbhub.toml
+2. Command line argument: --dsn="your-postgres-connection-string"
+3. Environment variable: export DSN="your-postgres-connection-string"
+4. .env file: DSN=your-postgres-connection-string
 
 Example DSN formats:
 ${sampleFormats}
@@ -78,6 +73,7 @@ ${sampleFormats}
 Example TOML config (dbhub.toml):
   [[sources]]
   id = "my_db"
+  type = "postgres"
   dsn = "postgres://user:pass@localhost:5432/dbname"
 
 See documentation for more details on configuring database connections.
@@ -244,7 +240,7 @@ See documentation for more details on configuring database connections.
       }
 
       // Start the HTTP server
-      app.listen(port, '0.0.0.0', () => {
+      app.listen(port!, '0.0.0.0', () => {
         // In development mode, suggest using the Vite dev server for hot reloading
         if (process.env.NODE_ENV === 'development') {
           console.error('Development mode detected!');
@@ -263,12 +259,24 @@ See documentation for more details on configuring database connections.
       await server.connect(transport);
       console.error("MCP server running on stdio");
 
-      // Listen for SIGINT to gracefully shut down
-      process.on("SIGINT", async () => {
+      let isShuttingDown = false;
+      const shutdown = async () => {
+        if (isShuttingDown) return;
+        isShuttingDown = true;
         console.error("Shutting down...");
         await transport.close();
+        await connectorManager.disconnect();
         process.exit(0);
-      });
+      };
+
+      // Listen for SIGINT/SIGTERM to gracefully shut down
+      process.on("SIGINT", shutdown);
+      process.on("SIGTERM", shutdown);
+
+      // Exit when stdin closes (parent process terminated).
+      // On Windows, SIGINT/SIGTERM are not reliably sent when the parent
+      // process exits - detecting stdin EOF is the portable way to handle this.
+      process.stdin.on("end", shutdown);
     }
   } catch (err) {
     console.error("Fatal error:", err);

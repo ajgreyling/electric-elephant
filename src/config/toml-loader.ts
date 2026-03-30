@@ -188,10 +188,15 @@ function validateToolsConfig(
         );
       }
 
-      // Only execute_sql can have readonly and max_rows
-      if (!isExecuteSql && (tool.readonly !== undefined || tool.max_rows !== undefined)) {
+      // Only execute_sql can have readonly, max_rows, and allow_access_to_pii_data
+      if (
+        !isExecuteSql &&
+        (tool.readonly !== undefined ||
+          tool.max_rows !== undefined ||
+          tool.allow_access_to_pii_data !== undefined)
+      ) {
         throw new Error(
-          `Configuration file ${configPath}: tool '${tool.name}' cannot have readonly or max_rows fields ` +
+          `Configuration file ${configPath}: tool '${tool.name}' cannot have readonly, max_rows, or allow_access_to_pii_data fields ` +
             `(these are only valid for ${BUILTIN_TOOL_EXECUTE_SQL} tool)`
         );
       }
@@ -219,6 +224,22 @@ function validateToolsConfig(
         `Configuration file ${configPath}: tool '${tool.name}' has invalid readonly. Must be a boolean (true or false).`
       );
     }
+
+    // Validate allow_access_to_pii_data if present (execute_sql only)
+    const allowPiiRaw = (tool as { allow_access_to_pii_data?: unknown }).allow_access_to_pii_data;
+    if (allowPiiRaw !== undefined) {
+      if (!isExecuteSql) {
+        throw new Error(
+          `Configuration file ${configPath}: tool '${tool.name}' cannot have allow_access_to_pii_data field ` +
+            `(only valid for ${BUILTIN_TOOL_EXECUTE_SQL})`
+        );
+      }
+      if (typeof allowPiiRaw !== "boolean") {
+        throw new Error(
+          `Configuration file ${configPath}: tool '${tool.name}' has invalid allow_access_to_pii_data. Must be a boolean (true or false).`
+        );
+      }
+    }
   }
 }
 
@@ -226,21 +247,19 @@ function validateToolsConfig(
  * Validate a single source configuration
  */
 function validateSourceConfig(source: SourceConfig, configPath: string): void {
-  const hasConnectionParams =
-    source.type && (source.type === "sqlite" ? source.database : source.host);
+  const hasConnectionParams = source.type === "postgres" && source.host;
 
   if (!source.dsn && !hasConnectionParams) {
     throw new Error(
       `Configuration file ${configPath}: source '${source.id}' must have either:\n` +
         `  - 'dsn' field (e.g., dsn = "postgres://user:pass@host:5432/dbname")\n` +
-        `  - OR connection parameters (type, host, database, user, password)\n` +
-        `  - For SQLite: type = "sqlite" and database path`
+        `  - OR PostgreSQL connection parameters (type, host, database, user, password)`
     );
   }
 
   // Validate type if provided
   if (source.type) {
-    const validTypes = ["postgres", "mysql", "mariadb", "sqlserver", "sqlite"];
+    const validTypes = ["postgres"];
     if (!validTypes.includes(source.type)) {
       throw new Error(
         `Configuration file ${configPath}: source '${source.id}' has invalid type '${source.type}'. ` +
@@ -273,11 +292,11 @@ function validateSourceConfig(source: SourceConfig, configPath: string): void {
   }
 
   if (source.aws_iam_auth === true) {
-    const validIamTypes = ["postgres", "mysql", "mariadb"];
+    const validIamTypes = ["postgres"];
     if (!source.type || !validIamTypes.includes(source.type)) {
       throw new Error(
         `Configuration file ${configPath}: source '${source.id}' has aws_iam_auth enabled, ` +
-          `but this is only supported for postgres, mysql, and mariadb sources.`
+          `but this is only supported for postgres sources.`
       );
     }
     if (!source.aws_region) {
@@ -324,14 +343,6 @@ function validateSourceConfig(source: SourceConfig, configPath: string): void {
 
   // Validate sslmode if provided
   if (source.sslmode !== undefined) {
-    // SQLite doesn't support SSL (local file-based database)
-    if (source.type === "sqlite") {
-      throw new Error(
-        `Configuration file ${configPath}: source '${source.id}' has sslmode but SQLite does not support SSL. ` +
-          `Remove the sslmode field for SQLite sources.`
-      );
-    }
-
     const validSslModes = ["disable", "require"];
     if (!validSslModes.includes(source.sslmode)) {
       throw new Error(
@@ -341,54 +352,18 @@ function validateSourceConfig(source: SourceConfig, configPath: string): void {
     }
   }
 
-  // Validate SQL Server authentication options
-  // Note: source.type is already populated from DSN by processSourceConfigs
+  // Authentication fields are not supported in PostgreSQL-only mode.
   if (source.authentication !== undefined) {
-    // authentication is only valid for SQL Server
-    if (source.type !== "sqlserver") {
-      throw new Error(
-        `Configuration file ${configPath}: source '${source.id}' has authentication but it is only supported for SQL Server.`
-      );
-    }
-
-    const validAuthMethods = ["ntlm", "azure-active-directory-access-token"];
-    if (!validAuthMethods.includes(source.authentication)) {
-      throw new Error(
-        `Configuration file ${configPath}: source '${source.id}' has invalid authentication '${source.authentication}'. ` +
-          `Valid values: ${validAuthMethods.join(", ")}`
-      );
-    }
-
-    // NTLM requires domain
-    if (source.authentication === "ntlm" && !source.domain) {
-      throw new Error(
-        `Configuration file ${configPath}: source '${source.id}' uses NTLM authentication but 'domain' is not specified.`
-      );
-    }
+    throw new Error(
+      `Configuration file ${configPath}: source '${source.id}' has authentication, but PostgreSQL-only mode does not support this field.`
+    );
   }
 
-  // Validate domain field
+  // Domain is not supported in PostgreSQL-only mode.
   if (source.domain !== undefined) {
-    // domain is only valid for SQL Server
-    if (source.type !== "sqlserver") {
-      throw new Error(
-        `Configuration file ${configPath}: source '${source.id}' has domain but it is only supported for SQL Server.`
-      );
-    }
-
-    // domain requires authentication=ntlm
-    if (source.authentication === undefined) {
-      throw new Error(
-        `Configuration file ${configPath}: source '${source.id}' has domain but authentication is not set. ` +
-          `Add authentication = "ntlm" to use Windows domain authentication.`
-      );
-    }
-    if (source.authentication !== "ntlm") {
-      throw new Error(
-        `Configuration file ${configPath}: source '${source.id}' has domain but authentication is set to '${source.authentication}'. ` +
-          `Domain is only valid with authentication = "ntlm".`
-      );
-    }
+    throw new Error(
+      `Configuration file ${configPath}: source '${source.id}' has domain, but PostgreSQL-only mode does not support this field.`
+    );
   }
 
   // Validate search_path (PostgreSQL only)
@@ -435,16 +410,6 @@ function processSourceConfigs(
     // Expand ~ in SSH key path
     if (processed.ssh_key) {
       processed.ssh_key = expandHomeDir(processed.ssh_key);
-    }
-
-    // Expand ~ in SQLite database path (if relative)
-    if (processed.type === "sqlite" && processed.database) {
-      processed.database = expandHomeDir(processed.database);
-    }
-
-    // Expand ~ in DSN for SQLite
-    if (processed.dsn && processed.dsn.startsWith("sqlite:///~")) {
-      processed.dsn = `sqlite:///${expandHomeDir(processed.dsn.substring(11))}`;
     }
 
     // Parse DSN to populate connection info fields (if not already set)
@@ -528,24 +493,14 @@ export function buildDSNFromSource(source: SourceConfig): string {
     );
   }
 
-  // Handle SQLite
-  if (source.type === "sqlite") {
-    if (!source.database) {
-      throw new Error(
-        `Source '${source.id}': 'database' field is required for SQLite`
-      );
-    }
-    return `sqlite:///${source.database}`;
+  if (source.type !== "postgres") {
+    throw new Error(
+      `Source '${source.id}': unsupported source type '${source.type}'. PostgreSQL-only mode requires type = "postgres".`
+    );
   }
 
-  // For other databases, require host, user, database
-  // Password is optional for Azure AD access token authentication and AWS IAM auth
-  const isAwsIamPasswordless =
-    source.aws_iam_auth === true &&
-    ["postgres", "mysql", "mariadb"].includes(source.type);
-  const passwordRequired =
-    source.authentication !== "azure-active-directory-access-token" &&
-    !isAwsIamPasswordless;
+  // In PostgreSQL-only mode password is optional when aws_iam_auth=true.
+  const passwordRequired = source.aws_iam_auth !== true;
   if (!source.host || !source.user || !source.database) {
     throw new Error(
       `Source '${source.id}': missing required connection parameters. ` +
@@ -555,8 +510,7 @@ export function buildDSNFromSource(source: SourceConfig): string {
   if (passwordRequired && !source.password) {
     throw new Error(
       `Source '${source.id}': password is required. ` +
-        `(Password is optional for azure-active-directory-access-token authentication ` +
-        `or when aws_iam_auth=true)`
+        `(Password is optional when aws_iam_auth=true)`
     );
   }
 
@@ -578,21 +532,8 @@ export function buildDSNFromSource(source: SourceConfig): string {
   // Collect query parameters
   const queryParams: string[] = [];
 
-  // Add SQL Server specific parameters
-  if (source.type === "sqlserver") {
-    if (source.instanceName) {
-      queryParams.push(`instanceName=${encodeURIComponent(source.instanceName)}`);
-    }
-    if (source.authentication) {
-      queryParams.push(`authentication=${encodeURIComponent(source.authentication)}`);
-    }
-    if (source.domain) {
-      queryParams.push(`domain=${encodeURIComponent(source.domain)}`);
-    }
-  }
-
-  // Add sslmode for network databases (not sqlite)
-  if (source.sslmode && source.type !== "sqlite") {
+  // Add sslmode for PostgreSQL DSNs.
+  if (source.sslmode) {
     queryParams.push(`sslmode=${source.sslmode}`);
   }
 

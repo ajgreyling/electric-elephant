@@ -7,7 +7,7 @@ title: "Overview"
 | Tool        | Command Name  | Description                                                         |
 | ----------- | ------------- | ------------------------------------------------------------------- |
 | Execute SQL | `execute_sql` or `execute_sql_{id}` | Execute single or multiple SQL statements (separated by semicolons) |
-| Search Objects | `search_objects` or `search_objects_{id}` | Search and list database objects (schemas, tables, columns, procedures, indexes) with pattern matching and token-efficient progressive disclosure |
+| Search Objects | `search_objects` or `search_objects_{id}` | Search and list database objects (schemas, tables, columns, procedures, functions, indexes) with pattern matching and token-efficient progressive disclosure |
 | Custom Tools | User-defined names | Define reusable, parameterized SQL operations in your `dbhub.toml` configuration file |
 
 ## Tool Configuration
@@ -44,7 +44,7 @@ This is useful when you want to restrict AI models to read-only schema explorati
 
 ### Per-Tool Settings
 
-Configure built-in tools with specific settings like `readonly` and `max_rows`:
+Configure built-in tools with specific settings like `readonly`, `max_rows`, and `allow_access_to_pii_data`:
 
 ```toml
 [[sources]]
@@ -62,7 +62,7 @@ name = "search_objects"
 source = "production"
 ```
 
-See [execute_sql documentation](/tools/execute-sql) for details on `readonly` and `max_rows` settings.
+See [execute_sql documentation](/tools/execute-sql) for details on `readonly`, `max_rows`, and `allow_access_to_pii_data`.
 
 ### Mixed Configuration
 
@@ -128,13 +128,13 @@ The tool name varies based on your configuration:
 
 **Single database without `--id`:**
 ```bash
-npx badger-db-mcp --dsn "postgres://..."
+npx electric-elephant --dsn "postgres://..."
 ```
 Tool name: `execute_sql`
 
 **Single database with `--id`:**
 ```bash
-npx badger-db-mcp --id prod --dsn "postgres://..."
+npx electric-elephant --id prod --dsn "postgres://..."
 ```
 Tool name: `execute_sql_prod`
 

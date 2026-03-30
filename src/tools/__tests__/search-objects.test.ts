@@ -346,6 +346,106 @@ describe('search_database_objects tool', () => {
       expect(tableResult.columns[1].description).toBe('Full name of the user');
       expect(tableResult.columns[2].description).toBe('Unique email address');
     });
+
+    it('should include postgres relation kind, foreign keys, triggers, and sequences in full detail', async () => {
+      mockConnector = createMockConnector('postgres');
+      mockGetCurrentConnector.mockReturnValue(mockConnector);
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['public']);
+      vi.mocked(mockConnector.getTables).mockResolvedValue(['orders']);
+
+      const mockColumns: TableColumn[] = [
+        { column_name: 'id', data_type: 'INTEGER', is_nullable: 'NO', column_default: null, description: null },
+        { column_name: 'customer_id', data_type: 'INTEGER', is_nullable: 'NO', column_default: null, description: null },
+      ];
+      vi.mocked(mockConnector.getTableSchema).mockResolvedValue(mockColumns);
+      vi.mocked(mockConnector.getTableIndexes).mockResolvedValue([]);
+      mockConnector.getTableRowCount = vi.fn().mockResolvedValue(5);
+
+      vi.mocked(mockConnector.executeSQL)
+        .mockResolvedValueOnce({ rows: [{ relkind: 'r' }], rowCount: 1 })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              constraint_name: 'orders_customer_id_fkey',
+              source_columns: ['customer_id'],
+              referenced_schema: 'public',
+              referenced_table: 'customers',
+              referenced_columns: ['id'],
+              update_action: 'a',
+              delete_action: 'c',
+              is_deferrable: false,
+              is_initially_deferred: false,
+            },
+          ],
+          rowCount: 1,
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              trigger_name: 'orders_audit_trigger',
+              trigger_timing: 'after',
+              trigger_enabled: 'O',
+              trigger_definition: 'CREATE TRIGGER ...',
+              trigger_events: ['insert', 'update'],
+            },
+          ],
+          rowCount: 1,
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              sequence_schema: 'public',
+              sequence_name: 'orders_id_seq',
+              owner_column: 'id',
+            },
+          ],
+          rowCount: 1,
+        });
+
+      const handler = createSearchDatabaseObjectsToolHandler();
+      const result = await handler(
+        {
+          object_type: 'table',
+          pattern: 'orders',
+          detail_level: 'full',
+        },
+        null
+      );
+
+      const parsed = parseToolResponse(result);
+      const tableResult = parsed.data.results[0];
+
+      expect(tableResult.relation_kind).toBe('table');
+      expect(tableResult.foreign_keys).toEqual([
+        {
+          name: 'orders_customer_id_fkey',
+          columns: ['customer_id'],
+          referenced_schema: 'public',
+          referenced_table: 'customers',
+          referenced_columns: ['id'],
+          on_update: 'no_action',
+          on_delete: 'cascade',
+          deferrable: false,
+          initially_deferred: false,
+        },
+      ]);
+      expect(tableResult.triggers).toEqual([
+        {
+          name: 'orders_audit_trigger',
+          timing: 'after',
+          events: ['insert', 'update'],
+          enabled: 'O',
+          definition: 'CREATE TRIGGER ...',
+        },
+      ]);
+      expect(tableResult.sequences).toEqual([
+        {
+          schema: 'public',
+          name: 'orders_id_seq',
+          owner_column: 'id',
+        },
+      ]);
+    });
   });
 
   describe('getTableRowCount dispatch', () => {

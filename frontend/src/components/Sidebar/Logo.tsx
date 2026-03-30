@@ -5,8 +5,8 @@ export default function Logo() {
     <div className="px-6 py-4">
       <Link to="/" className="block hover:opacity-80 transition-opacity">
         <img
-          src="/badger-logo.svg"
-          alt="Badger DB MCP"
+          src="/electric-elephant-logo.png"
+          alt="Electric Elephant"
           className="h-10 w-auto"
         />
       </Link>

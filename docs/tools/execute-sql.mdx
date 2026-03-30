@@ -11,6 +11,7 @@ Execute SQL queries and statements on your database with support for transaction
 - **Transactions**: Wrap operations in `BEGIN`/`COMMIT` blocks for atomic execution
 - **Read-only mode**: When enabled with `--readonly` flag, only SELECT and read-only operations are allowed
 - **Row limiting**: Configure `--max-rows` to limit SELECT query results
+- **PII/clinical guard**: By default, queries that use `SELECT *` / `table.*` or select columns matching PII or sensitive clinical heuristics may be rejected unless you opt in (see below)
 
 ## Single Query
 
@@ -113,7 +114,7 @@ readonly = true
 
 ```bash Command Line (Deprecated)
 # This flag is deprecated - use TOML configuration instead
-npx badger-db-mcp --readonly --dsn "postgres://user:pass@localhost:5432/mydb"
+npx electric-elephant --readonly --dsn "postgres://user:pass@localhost:5432/mydb"
 ```
 </CodeGroup>
 
@@ -143,13 +144,34 @@ max_rows = 1000
 
 ```bash Command Line (Deprecated)
 # This flag is deprecated - use TOML configuration instead
-npx badger-db-mcp --max-rows 1000 --dsn "..."
+npx electric-elephant --max-rows 1000 --dsn "..."
 ```
 </CodeGroup>
 
 - Only applied to SELECT statements, not INSERT/UPDATE/DELETE
-- If your query already has a `LIMIT` or `TOP` clause, Badger DB MCP uses the smaller value
+- If your query already has a `LIMIT` or `TOP` clause, Electric Elephant uses the smaller value
 - Can be configured per-tool in [TOML configuration](/config/toml)
+
+## PII and clinical data guard
+
+For `execute_sql`, **`allow_access_to_pii_data` defaults to false** (fail-safe): the server can block queries before they run when the projection looks like it would expose personally identifiable information or sensitive clinical fields (for example identity/contact columns, certain HIV/TB/lab-related identifiers, wildcard `SELECT *`, or `schema.table.*`).
+
+When a query is blocked, the tool returns an error with code **`PII_ACCESS_VIOLATION`**, including:
+
+- **Reason**: `wildcard_projection` or `suspected_pii_or_clinical_column`
+- **Matched identifiers** (capped list), when applicable
+- **What to do**: Narrow the `SELECT` list to non-sensitive columns, or set `allow_access_to_pii_data = true` on the `execute_sql` tool only after explicit policy approval.
+
+Enable access only when your deployment explicitly allows returning that class of data:
+
+```toml
+[[tools]]
+name = "execute_sql"
+source = "production"
+allow_access_to_pii_data = true
+```
+
+**Configuration:** [TOML](/config/toml#allow_access_to_pii_data) `allow_access_to_pii_data`, or in single-DSN mode `ALLOW_ACCESS_TO_PII_DATA` / `--allow-access-to-pii-data=true` (see [command-line](/config/command-line#pii-guard-cli)). HTTP API responses list the effective value per source under each tool object as `allow_access_to_pii_data`.
 
 ## Selective Tool Exposure
 

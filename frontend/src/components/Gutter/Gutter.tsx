@@ -23,7 +23,7 @@ export default function Gutter({ sources }: GutterProps) {
         </div>
         <div className="w-full flex flex-col gap-2 items-center">
           <GutterIcon icon={<ActivityIcon />} to="/requests" tooltip="Requests" />
-          <GutterIcon icon={<HelpIcon />} href="https://github.com/ajgreyling/badger-db-mcp" tooltip="Help" />
+          <GutterIcon icon={<HelpIcon />} href="https://github.com/ajgreyling/electric-elephant" tooltip="Help" />
         </div>
       </aside>
     </TooltipProvider>

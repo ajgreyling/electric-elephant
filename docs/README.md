@@ -1,4 +1,4 @@
-# DBHub Documentation
+# Electric Elephant Documentation
 
 Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview documentation locally:
 

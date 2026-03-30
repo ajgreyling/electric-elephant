@@ -3,7 +3,18 @@
  * Manages tool enablement and configuration across multiple database sources
  */
 
-import type { TomlConfig, ToolConfig, ExecuteSqlToolConfig, SearchObjectsToolConfig, ParameterConfig } from "../types/config.js";
+import type {
+  TomlConfig,
+  ToolConfig,
+  ExecuteSqlToolConfig,
+  SearchObjectsToolConfig,
+  DiagnoseLocksToolConfig,
+  ExplainPlanToolConfig,
+  ReplicationStatusToolConfig,
+  TableHealthToolConfig,
+  ExtensionsStatusToolConfig,
+  ParameterConfig
+} from "../types/config.js";
 import { BUILTIN_TOOLS } from "./builtin-tools.js";
 import { ConnectorManager } from "../connectors/manager.js";
 import { validateParameters } from "../utils/parameter-mapper.js";
@@ -187,8 +198,18 @@ export class ToolRegistry {
           // Create properly typed tool configs based on the tool name
           if (name === 'execute_sql') {
             return { name: 'execute_sql', source: source.id } satisfies ExecuteSqlToolConfig;
-          } else {
+          } else if (name === 'search_objects') {
             return { name: 'search_objects', source: source.id } satisfies SearchObjectsToolConfig;
+          } else if (name === 'diagnose_locks') {
+            return { name: 'diagnose_locks', source: source.id } satisfies DiagnoseLocksToolConfig;
+          } else if (name === "explain_plan") {
+            return { name: 'explain_plan', source: source.id } satisfies ExplainPlanToolConfig;
+          } else if (name === "replication_status") {
+            return { name: "replication_status", source: source.id } satisfies ReplicationStatusToolConfig;
+          } else if (name === "table_health") {
+            return { name: "table_health", source: source.id } satisfies TableHealthToolConfig;
+          } else {
+            return { name: "extensions_status", source: source.id } satisfies ExtensionsStatusToolConfig;
           }
         });
         registry.set(source.id, defaultTools);

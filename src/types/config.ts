@@ -76,6 +76,8 @@ export interface ExecuteSqlToolConfig {
   source: string;
   readonly?: boolean;
   max_rows?: number;
+  /** When false (default if omitted), execute_sql may block queries that appear to expose PII or sensitive clinical fields. */
+  allow_access_to_pii_data?: boolean;
 }
 
 /**
@@ -83,6 +85,46 @@ export interface ExecuteSqlToolConfig {
  */
 export interface SearchObjectsToolConfig {
   name: "search_objects"; // Must match BUILTIN_TOOL_SEARCH_OBJECTS from builtin-tools.ts
+  source: string;
+}
+
+/**
+ * Built-in tool configuration for diagnose_locks
+ */
+export interface DiagnoseLocksToolConfig {
+  name: "diagnose_locks";
+  source: string;
+}
+
+/**
+ * Built-in tool configuration for explain_plan
+ */
+export interface ExplainPlanToolConfig {
+  name: "explain_plan";
+  source: string;
+}
+
+/**
+ * Built-in tool configuration for replication_status
+ */
+export interface ReplicationStatusToolConfig {
+  name: "replication_status";
+  source: string;
+}
+
+/**
+ * Built-in tool configuration for table_health
+ */
+export interface TableHealthToolConfig {
+  name: "table_health";
+  source: string;
+}
+
+/**
+ * Built-in tool configuration for extensions_status
+ */
+export interface ExtensionsStatusToolConfig {
+  name: "extensions_status";
   source: string;
 }
 
@@ -102,7 +144,15 @@ export interface CustomToolConfig {
 /**
  * Unified tool configuration (discriminated union)
  */
-export type ToolConfig = ExecuteSqlToolConfig | SearchObjectsToolConfig | CustomToolConfig;
+export type ToolConfig =
+  | ExecuteSqlToolConfig
+  | SearchObjectsToolConfig
+  | DiagnoseLocksToolConfig
+  | ExplainPlanToolConfig
+  | ReplicationStatusToolConfig
+  | TableHealthToolConfig
+  | ExtensionsStatusToolConfig
+  | CustomToolConfig;
 
 /**
  * Complete TOML configuration file structure

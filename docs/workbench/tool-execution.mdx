@@ -3,11 +3,13 @@ title: "Tool Execution"
 description: "Execute database tools directly from your browser"
 ---
 
-Badger DB MCP lets you run pre-defined SQL statements through a constrained form interface, with URL query parameters to prefill fields for bookmarking and sharing.
+Electric Elephant lets you run pre-defined SQL statements through a constrained form interface, with URL query parameters to prefill fields for bookmarking and sharing.
 
 ## execute_sql Tools
 
 For `execute_sql` tools, you get a full SQL editor with syntax highlighting.
+
+The same [PII and clinical data guard](/tools/execute-sql#pii-and-clinical-data-guard) applies in the workbench as for MCP clients: wildcard projections and heuristic-sensitive columns may be blocked with `PII_ACCESS_VIOLATION` unless the tool is configured with `allow_access_to_pii_data = true` (or equivalent single-DSN opt-in).
 
 ![execute-sql](https://raw.githubusercontent.com/bytebase/dbhub/main/docs/images/workbench/execute-sql.webp)
 

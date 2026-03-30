@@ -4,7 +4,7 @@
   "fonts": {
     "family": "DM Sans"
   },
-  "name": "Badger DB MCP, Minimal Database MCP Server",
+  "name": "Electric Elephant, PostgreSQL MCP Server",
   "colors": {
     "primary": "#335DFF",
     "light": "#E8ECFF",
@@ -57,12 +57,12 @@
   "navbar": {
     "primary": {
       "type": "github",
-      "href": "https://github.com/ajgreyling/badger-db-mcp"
+      "href": "https://github.com/ajgreyling/electric-elephant"
     }
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/ajgreyling/badger-db-mcp"
+      "github": "https://github.com/ajgreyling/electric-elephant"
     }
   },
   "contextual": {
@@ -75,7 +75,7 @@
   },
   "seo": {
     "metatags": {
-      "canonical": "https://github.com/ajgreyling/badger-db-mcp"
+      "canonical": "https://github.com/ajgreyling/electric-elephant"
     }
   }
 }

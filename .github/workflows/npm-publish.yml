@@ -1,4 +1,4 @@
-# Workflow for publishing the Badger DB MCP package to npm
+# Workflow for publishing the Electric Elephant package to npm
 # This workflow has two trigger modes:
 #
 # 1. Manual trigger (workflow_dispatch):
@@ -11,9 +11,9 @@
 #    - Skips publishing if the version already exists on npm
 #
 # Authentication: Uses OIDC trusted publishing (no npm tokens required)
-# Prerequisites: Configure trusted publisher at https://www.npmjs.com/package/badger-db-mcp/access
+# Prerequisites: Configure trusted publisher at https://www.npmjs.com/package/electric-elephant/access
 #   - Organization/User: your npm user or org
-#   - Repository: badger-db-mcp (or your fork name)
+#   - Repository: electric-elephant (or your fork name)
 #   - Workflow filename: npm-publish.yml
 #   - Environment: (leave empty unless using GitHub environments)
 
@@ -95,7 +95,7 @@ jobs:
             VERSION="${CURRENT_VERSION}"
             
             # Check if this version already exists in npm registry to avoid duplicates
-            if npm view badger-db-mcp@${VERSION} version &> /dev/null; then
+            if npm view electric-elephant@${VERSION} version &> /dev/null; then
               echo "Version ${VERSION} already exists in npm registry. Skipping publish."
               SHOULD_PUBLISH="false"
             else
@@ -130,7 +130,7 @@ jobs:
           if [ "${SHOULD_PUBLISH}" = "true" ]; then
             # Step 1: Update package name and version
             echo "Preparing package.json for publishing..."
-            jq --arg version "$VERSION" '.name = "badger-db-mcp" | .version = $version' package.json > package.json.tmp
+            jq --arg version "$VERSION" '.name = "electric-elephant" | .version = $version' package.json > package.json.tmp
             mv package.json.tmp package.json
             
             # Step 2: Configure which files to include in the published package
@@ -140,7 +140,7 @@ jobs:
 
             # Step 3: Add binary entry for CLI usage (makes it executable with 'npx' or after global install)
             echo "Adding bin entry for CLI usage..."
-            jq '.bin = {"badger-db-mcp": "dist/index.js"}' package.json > package.json.tmp 
+            jq '.bin = {"electric-elephant": "dist/index.js"}' package.json > package.json.tmp 
             mv package.json.tmp package.json
             
             echo "Package.json prepared successfully for publishing"
@@ -153,7 +153,7 @@ jobs:
       - name: Publish to npm
         if: env.SHOULD_PUBLISH == 'true'
         run: |
-          echo "Publishing badger-db-mcp@${{ env.PACKAGE_VERSION }} with tag ${{ env.NPM_TAG }}..."
+          echo "Publishing electric-elephant@${{ env.PACKAGE_VERSION }} with tag ${{ env.NPM_TAG }}..."
           echo "npm version: $(npm --version)"
           # --provenance enables OIDC authentication and signed attestation
           # No NODE_AUTH_TOKEN needed - authentication via GitHub OIDC

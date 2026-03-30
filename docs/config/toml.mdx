@@ -2,38 +2,38 @@
 title: "TOML Configuration"
 ---
 
-TOML configuration is the recommended way to configure Badger DB MCP for multi-database setups and advanced configurations. It provides more flexibility than command-line options or environment variables.
+TOML configuration is the recommended way to configure Electric Elephant for multi-database setups and advanced configurations. It provides more flexibility than command-line options or environment variables.
 
 ## Overview
 
 TOML configuration enables:
-- **Multi-database support**: Connect to multiple databases from a single Badger DB MCP instance
+- **Multi-database support**: Connect to multiple databases from a single Electric Elephant instance
 - **Per-source settings**: Configure timeouts, SSL, SSH tunnels, and lazy connections individually per database
-- **Per-tool settings**: Apply different restrictions (readonly, max_rows) per tool
+- **Per-tool settings**: Apply different restrictions (readonly, max_rows, PII/clinical guard) per tool
 - **Custom tools**: Define reusable, parameterized SQL operations as MCP tools
 - **Environment variable interpolation**: Use `${VAR}` syntax to avoid hardcoding credentials
 - **Hot reload**: Automatically detect config changes and reload connections without restarting
 
 ## Hot Reload
 
-When using TOML configuration, Badger DB MCP automatically watches `dbhub.toml` for changes and reloads database connections without requiring a server restart.
+When using TOML configuration, Electric Elephant automatically watches `dbhub.toml` for changes and reloads database connections without requiring a server restart.
 
 **How it works:**
 
-1. Badger DB MCP detects file changes and waits 500ms (debounce) to handle editors that write in multiple steps
+1. Electric Elephant detects file changes and waits 500ms (debounce) to handle editors that write in multiple steps
 2. The new configuration is parsed and validated — if invalid, existing connections are preserved
 3. All database connections are disconnected and reconnected with the new configuration
-4. If reconnection fails, Badger DB MCP automatically rolls back to the previous working configuration
+4. If reconnection fails, Electric Elephant automatically rolls back to the previous working configuration
 
 ```
-# Edit dbhub.toml while Badger DB MCP is running — changes apply automatically
+# Edit dbhub.toml while Electric Elephant is running — changes apply automatically
 # No server restart needed
 ```
 
 <Note>
 **STDIO transport limitation:** In STDIO mode (the default for Claude Desktop, Cursor, etc.), hot reload updates the underlying database connections and tool settings, but clients won't see newly added or removed tools until a full server restart. This is because STDIO clients discover tools once at startup.
 
-HTTP transport (`--transport http`) creates a fresh Badger DB MCP server per request, so all changes — including added/removed tools — take effect immediately.
+HTTP transport (`--transport http`) creates a fresh Electric Elephant server per request, so all changes — including added/removed tools — take effect immediately.
 </Note>
 
 ## Environment Variable Interpolation
@@ -59,12 +59,12 @@ ssh_password = "${SSH_PASSWORD}"
 ```
 
 ```bash
-# Set env vars, then start Badger DB MCP
+# Set env vars, then start Electric Elephant
 export DB_PASSWORD="s3cret"
 export STAGING_HOST="staging.example.com"
 export STAGING_PASSWORD="staging_pass"
 export SSH_PASSWORD="ssh_pass"
-npx badger-db-mcp --config dbhub.toml
+npx electric-elephant --config dbhub.toml
 ```
 
 <Note>
@@ -104,19 +104,19 @@ source = "staging"
 readonly = false
 ```
 
-Start Badger DB MCP:
+Start Electric Elephant:
 
 ```bash
 # Automatically loads ./dbhub.toml
-npx badger-db-mcp --transport http --port 8080
+npx electric-elephant --transport http --port 8080
 
 # Or specify custom location
-npx badger-db-mcp --config=/path/to/config.toml
+npx electric-elephant --config=/path/to/config.toml
 ```
 
 ## Source Options
 
-Sources define database connections. Each source represents a database that Badger DB MCP can connect to.
+Sources define database connections. Each source represents a database that Electric Elephant can connect to.
 
 ### id
 
@@ -367,7 +367,7 @@ Sources define database connections. Each source represents a database that Badg
   search_path = "myschema,public"
   ```
 
-  Without `search_path`, Badger DB MCP defaults to the `public` schema for all schema discovery operations.
+  Without `search_path`, Electric Elephant defaults to the `public` schema for all schema discovery operations.
 
   <Note>
   This option is **only available via TOML**. It is not supported as a DSN query parameter.
@@ -468,6 +468,25 @@ Tools define MCP tools (like `execute_sql`) with specific execution settings. To
   </Note>
 
   See [Execute SQL documentation](/tools/execute-sql#row-limits) for more details.
+</ParamField>
+
+### allow_access_to_pii_data
+
+<ParamField path="allow_access_to_pii_data" type="boolean" default="false">
+  **execute_sql only.** When `false` or omitted, Electric Elephant may reject queries that project wildcards (`*` or `table.*`) or columns/expressions that match PII or sensitive clinical heuristics. Set to `true` only when policy explicitly allows returning that data.
+
+  ```toml
+  [[tools]]
+  name = "execute_sql"
+  source = "production"
+  allow_access_to_pii_data = true
+  ```
+
+  <Note>
+  This is a **tool-level** setting. Configure it in the `[[tools]]` section, not in `[[sources]]`.
+  </Note>
+
+  See [Execute SQL — PII and clinical data guard](/tools/execute-sql#pii-and-clinical-data-guard).
 </ParamField>
 
 ### statement
@@ -689,3 +708,4 @@ default = 10
 | `parameters` | array | ❌ | Parameter definitions for custom tools |
 | `readonly` | boolean | ❌ | Read-only mode (default: `false`) |
 | `max_rows` | number | ❌ | Max rows limit (default: unlimited) |
+| `allow_access_to_pii_data` | boolean | ❌ | Allow PII/clinical-sensitive projections for `execute_sql` (default: `false`) |

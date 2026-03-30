@@ -65,7 +65,7 @@ export function parseCommandLineArgs() {
         i++; // Skip the next argument as it's the value
       } else {
         // Handle --key format (boolean flag). For allow-destructive-sql we require explicit =true.
-        if (key === "allow-destructive-sql") {
+        if (key === "allow-destructive-sql" || key === "allow-access-to-pii-data") {
           parsedManually[key] = "";
         } else {
           parsedManually[key] = "true";
@@ -163,6 +163,25 @@ export function allowDestructiveSql(): boolean {
   return args["allow-destructive-sql"] === "true";
 }
 
+/**
+ * Whether execute_sql may return columns that match PII / sensitive clinical heuristics.
+ * When false (default), those queries are blocked unless overridden per TOML [[tools]].
+ * Single-DSN mode: CLI `--allow-access-to-pii-data=true` or env `ALLOW_ACCESS_TO_PII_DATA` (true/1/yes).
+ * Bare `--allow-access-to-pii-data` does not enable access; use explicit =true.
+ */
+export function allowAccessToPiiDataFromEnvCli(): boolean {
+  const args = parseCommandLineArgs();
+  if (args["allow-access-to-pii-data"] !== undefined) {
+    return args["allow-access-to-pii-data"] === "true";
+  }
+  const raw = process.env.ALLOW_ACCESS_TO_PII_DATA;
+  if (raw === undefined) {
+    return false;
+  }
+  const v = raw.trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
 
 /**
  * Build DSN from individual environment variables
@@ -177,20 +196,13 @@ export function buildDSNFromEnvParams(): { dsn: string; source: string } | null 
   const dbName = process.env.DB_NAME;
   const dbPort = process.env.DB_PORT;
 
-  // For SQLite, only DB_TYPE and DB_NAME are required
-  if (dbType?.toLowerCase() === 'sqlite') {
-    if (!dbName) {
-      return null;
-    }
-  } else {
-    // For other databases, require all essential parameters
-    if (!dbType || !dbHost || !dbUser || !dbPassword || !dbName) {
-      return null;
-    }
+  // PostgreSQL-only mode requires all essential parameters.
+  if (!dbType || !dbHost || !dbUser || !dbPassword || !dbName) {
+    return null;
   }
 
   // Validate supported database types
-  const supportedTypes = ['postgres', 'postgresql', 'mysql', 'mariadb', 'sqlserver', 'sqlite'];
+  const supportedTypes = ['postgres', 'postgresql'];
   if (!supportedTypes.includes(dbType.toLowerCase())) {
     throw new Error(`Unsupported DB_TYPE: ${dbType}. Supported types: ${supportedTypes.join(', ')}`);
   }
@@ -203,19 +215,6 @@ export function buildDSNFromEnvParams(): { dsn: string; source: string } | null 
       case 'postgresql':
         port = '5432';
         break;
-      case 'mysql':
-      case 'mariadb':
-        port = '3306';
-        break;
-      case 'sqlserver':
-        port = '1433';
-        break;
-      case 'sqlite':
-        // SQLite doesn't use host/port, handle differently
-        return {
-          dsn: `sqlite:///${dbName}`,
-          source: 'individual environment variables'
-        };
       default:
         throw new Error(`Unknown database type for port determination: ${dbType}`);
     }
@@ -247,14 +246,9 @@ export function resolveDSN(): { dsn: string; source: string; isDemo?: boolean } 
   // Get command line arguments
   const args = parseCommandLineArgs();
 
-  // Check for demo mode first (highest priority)
+  // Demo mode was removed in PostgreSQL-only mode.
   if (isDemoMode()) {
-    // Will use in-memory SQLite with demo data
-    return {
-      dsn: "sqlite:///:memory:",
-      source: "demo mode",
-      isDemo: true,
-    };
+    throw new Error("--demo is not supported in PostgreSQL-only mode.");
   }
 
   // 1. Check command line arguments
@@ -574,6 +568,9 @@ export async function resolveSourceConfigs(): Promise<{
   // 2. Fallback to single DSN configuration (including demo mode)
   const dsnResult = resolveDSN();
   if (dsnResult) {
+    // Hydrate .env so ALLOW_ACCESS_TO_PII_DATA applies when DSN was resolved from CLI only
+    loadEnvFiles();
+
     // Parse DSN to extract database type
     let dsnUrl: SafeURL;
     try {
@@ -587,19 +584,13 @@ export async function resolveSourceConfigs(): Promise<{
     const protocol = dsnUrl.protocol.replace(':', '');
 
     // Map protocol to database type
-    let dbType: "postgres" | "mysql" | "mariadb" | "sqlserver" | "sqlite";
+    let dbType: "postgres";
     if (protocol === 'postgresql' || protocol === 'postgres') {
       dbType = 'postgres';
-    } else if (protocol === 'mysql') {
-      dbType = 'mysql';
-    } else if (protocol === 'mariadb') {
-      dbType = 'mariadb';
-    } else if (protocol === 'sqlserver') {
-      dbType = 'sqlserver';
-    } else if (protocol === 'sqlite') {
-      dbType = 'sqlite';
     } else {
-      throw new Error(`Unsupported database type in DSN: ${protocol}`);
+      throw new Error(
+        `Unsupported database type in DSN: ${protocol}. PostgreSQL-only mode supports postgres/postgresql DSNs only.`
+      );
     }
 
     // Get --id flag value (if specified) to use as source ID
@@ -644,17 +635,22 @@ export async function resolveSourceConfigs(): Promise<{
       source.ssh_keepalive_count_max = sshResult.config.keepaliveCountMax;
     }
 
-    // Add init script for demo mode
-    if (dsnResult.isDemo) {
-      const { getSqliteInMemorySetupSql } = await import('./demo-loader.js');
-      source.init_script = getSqliteInMemorySetupSql();
-    }
-
     // Single-DSN mode: read-only by default; require --allow-destructive-sql=true for writes
     const readOnly = !allowDestructiveSql();
+    const allowPii = allowAccessToPiiDataFromEnvCli();
     const tools: ToolConfig[] = [
-      { name: "execute_sql", source: sourceId, readonly: readOnly },
+      {
+        name: "execute_sql",
+        source: sourceId,
+        readonly: readOnly,
+        ...(allowPii && { allow_access_to_pii_data: true }),
+      },
       { name: "search_objects", source: sourceId },
+      { name: "diagnose_locks", source: sourceId },
+      { name: "explain_plan", source: sourceId },
+      { name: "replication_status", source: sourceId },
+      { name: "table_health", source: sourceId },
+      { name: "extensions_status", source: sourceId },
     ];
 
     return {

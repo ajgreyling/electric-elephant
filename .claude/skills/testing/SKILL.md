@@ -1,11 +1,11 @@
 ---
 name: testing
-description: Run and troubleshoot tests for Badger DB MCP, including unit tests, integration tests with Testcontainers, and database-specific tests. Use when asked to run tests, fix test failures, debug integration tests, troubleshoot Docker/database container issues, or add new tests. Also use when verifying code changes work correctly or when CI test failures need investigation.
+description: Run and troubleshoot tests for Electric Elephant, including unit tests and PostgreSQL integration tests with Testcontainers. Use when asked to run tests, fix test failures, debug integration tests, troubleshoot Docker/database container issues, or add new tests. Also use when verifying code changes work correctly or when CI test failures need investigation.
 ---
 
 # Testing Skill
 
-This skill helps you run, write, and troubleshoot tests in the Badger DB MCP project.
+This skill helps you run, write, and troubleshoot tests in the Electric Elephant project.
 
 ## Test Commands
 
@@ -43,20 +43,15 @@ This means the naming convention matters — integration tests MUST have `integr
 ### Test File Locations
 
 **Unit tests** (~20 files, no Docker needed):
-- `src/utils/__tests__/` — Utility function tests (SQL parsing, DSN obfuscation, SSH config, allowed keywords, identifier quoting, parameter mapping, row limiting, safe URL, config watcher, AWS RDS signer)
-- `src/tools/__tests__/` — Tool handler tests (execute-sql, search-objects, custom-tool-handler)
+- `src/utils/__tests__/` — Utility function tests (SQL parsing, DSN obfuscation, SSH config, allowed keywords, identifier quoting, parameter mapping, row limiting, safe URL, config watcher, AWS RDS signer, PII heuristics when present)
+- `src/tools/__tests__/` — Tool handler tests (execute-sql including PII guard / `PII_ACCESS_VIOLATION`, search-objects, custom-tool-handler)
 - `src/config/__tests__/` — Configuration tests (env parsing, TOML loading)
 - `src/connectors/__tests__/` — Connector unit tests (dsn-parser, manager)
 - `src/requests/__tests__/` — Request store tests
 
-**Integration tests** (~11 files, Docker required):
+**Integration tests** (Docker required):
 - `src/connectors/__tests__/postgres.integration.test.ts`
-- `src/connectors/__tests__/mysql.integration.test.ts`
-- `src/connectors/__tests__/mariadb.integration.test.ts`
-- `src/connectors/__tests__/sqlserver.integration.test.ts`
-- `src/connectors/__tests__/sqlite.integration.test.ts`
 - `src/connectors/__tests__/postgres-ssh.integration.test.ts`
-- `src/connectors/__tests__/multi-sqlite-sources.integration.test.ts`
 - `src/__tests__/json-rpc-integration.test.ts`
 - `src/api/__tests__/sources.integration.test.ts`
 - `src/api/__tests__/requests.integration.test.ts`
@@ -79,13 +74,13 @@ To add a new database connector test, extend this class and implement:
 
 Located in `src/__fixtures__/`:
 - `helpers.ts` — Utilities: `fixtureTomlPath()`, `loadFixtureConfig()`, `setupManagerWithFixture()`
-- `toml/multi-sqlite.toml` — Three in-memory SQLite databases (database_a, database_b, database_c)
+- multi-source fixture TOMLs — Used for source-routing tests
 - `toml/readonly-maxrows.toml` — Sources with readonly/max_rows tool configurations
 
 Usage:
 ```typescript
 import { setupManagerWithFixture, FIXTURES } from '../../__fixtures__/helpers.js';
-const manager = await setupManagerWithFixture(FIXTURES.MULTI_SQLITE);
+const manager = await setupManagerWithFixture(FIXTURES.READONLY_MAXROWS);
 // ... test ...
 await manager.disconnect();
 ```
@@ -102,24 +97,20 @@ SSH tunnel tests mock `SSHTunnel.prototype.establish` to avoid real SSH connecti
 
 ## Integration Testing
 
-Integration tests use [Testcontainers](https://testcontainers.com/) to run real database instances in Docker.
+Integration tests use [Testcontainers](https://testcontainers.com/) to run real PostgreSQL instances in Docker.
 
 ### Prerequisites
 
 Before running integration tests:
 1. Docker is installed and running: `docker ps`
-2. Sufficient Docker memory (4GB+ recommended, especially for SQL Server)
+2. Sufficient Docker memory for PostgreSQL test containers
 3. Network access to pull Docker images
 
-### Database Images
+### Database Image
 
 | Database | Image | Notes |
 |----------|-------|-------|
 | PostgreSQL | `postgres:15-alpine` | Fast startup |
-| MySQL | `@testcontainers/mysql` | Supports IAM auth testing |
-| MariaDB | `@testcontainers/mariadb` | Supports IAM auth testing |
-| SQL Server | `@testcontainers/mssqlserver` | Slow startup (3-5 min), needs 4GB+ RAM |
-| SQLite | No container needed | In-memory or file-based |
 
 ## Troubleshooting
 
@@ -130,10 +121,10 @@ docker system df             # Check disk space
 docker pull postgres:15-alpine  # Manually pull images
 ```
 
-### SQL Server Timeouts
-SQL Server containers are the slowest to start (3-5 minutes). Run them separately and ensure Docker has 4GB+ memory:
+### Container Pull/Startup Delays
+If PostgreSQL images are slow to pull or start, retry the specific integration suite to isolate setup issues:
 ```bash
-pnpm test src/connectors/__tests__/sqlserver.integration.test.ts
+pnpm test src/connectors/__tests__/postgres.integration.test.ts
 ```
 
 ### Test Isolation Issues

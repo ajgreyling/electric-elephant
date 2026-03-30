@@ -12,7 +12,7 @@ title: "Introduction"
   src="/images/logo/full-dark.svg"
 />
 
-Badger DB MCP is a zero-dependency, token efficient MCP server implementing the Model Context Protocol server interface. This lightweight gateway allows MCP-compatible clients to connect to and explore different databases.
+Electric Elephant is a zero-dependency, token efficient MCP server implementing the Model Context Protocol server interface. This lightweight gateway allows MCP-compatible clients to connect to and explore different databases.
 
 ```
  +------------------+    +--------------+    +------------------+
@@ -22,7 +22,7 @@ Badger DB MCP is a zero-dependency, token efficient MCP server implementing the 
  |                  |    |              |    |                  |
  |  Claude Code     +--->+              +--->+    SQL Server    |
  |                  |    |              |    |                  |
- |  Cursor          +--->+  Badger DB  +--->+    SQLite        |
+ |  Cursor          +--->+ Elephant MCP +--->+    SQLite        |
  |                  |    |              |    |                  |
  |  VS Code         +--->+              +--->+    MySQL         |
  |                  |    |              |    |                  |
@@ -37,21 +37,21 @@ Badger DB MCP is a zero-dependency, token efficient MCP server implementing the 
 
 PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite.
 
-## Why Badger DB MCP?
+## Why Electric Elephant?
 
-Badger DB MCP brings powerful database capabilities to AI coding assistants:
+Electric Elephant brings powerful database capabilities to AI coding assistants:
 
 - **Local Development First**: Zero dependency, token efficient with just two MCP tools to maximize context window
 - **Multi-Database**: PostgreSQL, MySQL, MariaDB, SQL Server, and SQLite through a single interface
 - **Multi-Connection**: Connect to multiple databases simultaneously with TOML configuration
-- **Guardrails**: Read-only mode, row limiting, and query timeout to prevent runaway operations
+- **Guardrails**: Read-only mode, row limiting, query timeout, and optional PII/clinical column checks on `execute_sql` (wildcards and heuristic column matches blocked unless explicitly opted in)
 - **Secure Access**: SSH tunneling and SSL/TLS encryption
 
 ## Key Features
 
 ### MCP Tools
 
-Badger DB MCP provides AI assistants with direct database access through three core tools:
+Electric Elephant provides AI assistants with direct database access through three core tools:
 - **[execute_sql](/tools/execute-sql)**: Run queries with transaction support and safety controls
 - **[search_objects](/tools/search-objects)**: Explore schemas, tables, columns, indexes, and procedures
 - **[Custom Tools](/tools/custom-tools)**: Define reusable, parameterized SQL operations
@@ -68,7 +68,7 @@ flowchart TB
     User["Human User"]
 
     %% Workbench
-    WB["Badger DB MCP Workbench"]
+    WB["Electric Elephant Workbench"]
 
     %% AI Agent with MCP Client
     subgraph Agent["AI Agent"]
@@ -78,8 +78,8 @@ flowchart TB
     %% Configuration
     Config["dbhub.toml"]
 
-    %% DBHub Server
-    subgraph DBHub["Badger DB MCP Server"]
+    %% Electric Elephant server
+    subgraph EE["Electric Elephant Server"]
         MCP["/mcp endpoint"]
         subgraph Tools["MCP Tools"]
             ES["execute_sql"]
@@ -93,26 +93,26 @@ flowchart TB
 
     %% Connections
     User --> WB
-    WB --> DBHub
+    WB --> EE
 
     Agent --> MC
     MC --> MCP
     MCP --> Tools
 
-    Config -.->|loads| DBHub
+    Config -.->|loads| EE
     Tools --> Databases
 ```
 
-Badger DB MCP acts as a gateway between databases and AI agents. AI agents access databases through the `/mcp` endpoint using MCP tools, while the Workbench provides direct browser-based access for humans.
+Electric Elephant acts as a gateway between databases and AI agents. AI agents access databases through the `/mcp` endpoint using MCP tools, while the Workbench provides direct browser-based access for humans.
 
 ## Getting Started
 
 <CardGroup cols={2}>
   <Card title="Installation" icon="download" href="/installation">
-    Install Badger DB MCP using Docker, NPM, or pre-built binaries
+    Install Electric Elephant using Docker, NPM, or pre-built binaries
   </Card>
 
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Get Badger DB MCP running with your first database connection
+    Get Electric Elephant running with your first database connection
   </Card>
 </CardGroup>

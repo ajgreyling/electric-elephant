@@ -1,7 +1,7 @@
 /**
  * SQLite Connector Implementation
  *
- * Implements SQLite database connectivity for DBHub using better-sqlite3
+ * Implements SQLite database connectivity for Electric Elephant using better-sqlite3
  * To use this connector: Set DSN=sqlite:///path/to/database.db in your .env file
  */
 
@@ -140,6 +140,9 @@ export class SQLiteConnector implements Connector {
       }
 
       this.db = new Database(this.dbPath, dbOptions);
+
+      // Return all integers as BigInt to preserve precision for large values
+      this.db.defaultSafeIntegers(true);
 
       // If an initialization script is provided, run it
       if (initScript) {

@@ -2,7 +2,7 @@
 title: "Quickstart"
 ---
 
-This guide will walk you through setting up Badger DB MCP and connecting it to an AI tool for the first time. We'll use demo mode to get started quickly, then show you how to connect to your own database.
+This guide will walk you through setting up Electric Elephant and connecting it to an AI tool for the first time. We'll use demo mode to get started quickly, then show you how to connect to your own database.
 
 ## Prerequisites
 
@@ -13,47 +13,43 @@ Before starting, ensure you have:
 
 ## Choose Your Transport
 
-Badger DB MCP supports two [transport protocols](/config/command-line#transport):
+Electric Elephant supports two [transport protocols](/config/command-line#transport):
 
 | Transport | How It Works | Best For |
 |-----------|--------------|----------|
-| **stdio** | AI tool spawns Badger DB MCP as a subprocess | Local desktop apps, single-user setups |
-| **http** | Badger DB MCP runs as a standalone HTTP server | Web clients, shared servers, remote access |
+| **stdio** | AI tool spawns Electric Elephant as a subprocess | Local desktop apps, single-user setups |
+| **http** | Electric Elephant runs as a standalone HTTP server | Web clients, shared servers, remote access |
 
-## Step 1: Start Badger DB MCP in Demo Mode
+## Step 1: Start Electric Elephant in Demo Mode
 
 <Note>
-If using **stdio** transport, skip this step - your AI tool will spawn Badger DB MCP as a subprocess automatically.
+If using **stdio** transport, skip this step - your AI tool will spawn Electric Elephant as a subprocess automatically.
 </Note>
 
-For **http** transport, start Badger DB MCP server manually:
+For **http** transport, start Electric Elephant server manually:
 
 <Tabs>
   <Tab title="NPM">
     ```bash
-    npx badger-db-mcp --transport http --port 8080 --demo
+    npx electric-elephant --transport http --port 8080 --demo
     ```
   </Tab>
 
   <Tab title="Docker">
     ```bash
-    docker run --rm -p 8080:8080 badger-db-mcp --transport http --port 8080 --demo
+    docker run --rm -p 8080:8080 electric-elephant --transport http --port 8080 --demo
     ```
   </Tab>
 </Tabs>
 
 The server will start at `http://localhost:8080`. The workbench is available at the root (`/`), and the MCP endpoint is at `/mcp`.
 
-```bash
+```text
 Running in DEMO mode - using sample employee database
 
- ____  _   _ ____ _____ ____ ____  
-| __ )| | | |  _ \_   _|  _ \  _ \ 
-|  _ \| | | | |_) || | | |_) | |_) |
-| |_) | |_| |  _ < | | |  _ <|  _ < 
-|____/ \___/|_| \_\|_| |_| \_\_| \_\
+(ASCII startup banner printed to stderr)
 
-[DEMO] - Badger DB MCP Server
+v0.x.x [DEMO] - PostgreSQL-Only, Readonly-First MCP Server
 
 Workbench at http://localhost:8080/
 MCP server endpoint at http://localhost:8080/mcp
@@ -119,8 +115,12 @@ Try these example prompts in your AI tool:
 
     The AI will generate and execute SQL like:
     ```sql
-    SELECT * FROM employees ORDER BY salary DESC LIMIT 5;
+    SELECT emp_no, first_name, last_name, salary FROM employees ORDER BY salary DESC LIMIT 5;
     ```
+
+    <Note>
+    With the default [PII/clinical guard](/tools/execute-sql#pii-and-clinical-data-guard), `SELECT *` may be rejected; explicit columns are preferred after inspecting the table with `search_objects`.
+    </Note>
   </Accordion>
 
   <Accordion icon="pen" title="Change data">
@@ -141,17 +141,17 @@ Try these example prompts in your AI tool:
 
 ## Step 4: Install the Agent Skill (Optional)
 
-Badger DB MCP provides an [agent skill](https://github.com/ajgreyling/badger-db-mcp/tree/main/skills/badger-db-mcp) that teaches your AI tool the best-practice workflow for database querying — explore the schema first, then write precise SQL. This reduces errors and back-and-forth.
+Electric Elephant provides an [agent skill](https://github.com/ajgreyling/electric-elephant/tree/main/skills/badger-db-mcp) that teaches your AI tool the best-practice workflow for database querying — explore the schema first, then write precise SQL. This reduces errors and back-and-forth.
 
 ```bash
-npx skills add ajgreyling/badger-db-mcp
+npx skills add ajgreyling/electric-elephant
 ```
 
 The skill guides the AI to follow the **explore-then-query** pattern: discover schemas, find tables, inspect table structure, then write targeted queries. It works with all supported AI tools.
 
 ## Step 5: Connect to Your Own Database
 
-Once you've verified Badger DB MCP works in demo mode, connect it to your actual database.
+Once you've verified Electric Elephant works in demo mode, connect it to your actual database.
 
 <Card title="DSN Configuration" icon="link" href="/config/command-line#dsn">
   Complete connection string formats and options for PostgreSQL, MySQL, MariaDB, SQL Server, and SQLite.

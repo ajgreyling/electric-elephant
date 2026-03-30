@@ -10,6 +10,7 @@ import {
   trackToolRequest,
 } from "../utils/tool-handler-helpers.js";
 import { splitSQLStatements } from "../utils/sql-parser.js";
+import { validateSqlPiiAccessGuard } from "../utils/pii-sql-guard.js";
 
 // Schema for execute_sql tool
 export const executeSqlSchema = {
@@ -59,6 +60,18 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
         errorMessage = `Read-only mode is enabled. Only the following SQL operations are allowed: ${allowedKeywords[connector.id]?.join(", ") || "none"}`;
         success = false;
         return createToolErrorResponse(errorMessage, "READONLY_VIOLATION");
+      }
+
+      const allowPiiAccess = toolConfig?.allow_access_to_pii_data === true;
+      const piiGuard = validateSqlPiiAccessGuard(sql, connector.id, allowPiiAccess);
+      if (!piiGuard.ok) {
+        errorMessage = piiGuard.message;
+        success = false;
+        return createToolErrorResponse(
+          piiGuard.message,
+          "PII_ACCESS_VIOLATION",
+          { reason: piiGuard.reason, matches: piiGuard.matches }
+        );
       }
 
       // Execute the SQL (single or multiple statements) if validation passed

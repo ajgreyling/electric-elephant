@@ -229,8 +229,8 @@ export class ConnectorManager {
     if (source.connection_timeout !== undefined) {
       config.connectionTimeoutSeconds = source.connection_timeout;
     }
-    // Query timeout is supported by PostgreSQL, MySQL, MariaDB, SQL Server (not SQLite)
-    if (source.query_timeout !== undefined && connector.id !== 'sqlite') {
+    // Query timeout is supported in PostgreSQL mode.
+    if (source.query_timeout !== undefined) {
       config.queryTimeoutSeconds = source.query_timeout;
     }
     // Pass readonly flag for SDK-level enforcement (PostgreSQL, SQLite)
@@ -490,10 +490,10 @@ export class ConnectorManager {
       return dsn;
     }
 
-    const supportedIamTypes = ["postgres", "mysql", "mariadb"];
+    const supportedIamTypes = ["postgres"];
     if (!source.type || !supportedIamTypes.includes(source.type)) {
       throw new Error(
-        `Source '${source.id}': aws_iam_auth is only supported for postgres, mysql, and mariadb`
+        `Source '${source.id}': aws_iam_auth is only supported for postgres`
       );
     }
     if (!source.aws_region) {

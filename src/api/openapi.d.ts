@@ -64,7 +64,7 @@ export interface components {
              * @example postgres
              * @enum {string}
              */
-            type: "postgres" | "mysql" | "mariadb" | "sqlserver" | "sqlite";
+            type: "postgres";
             /**
              * @description Database host (not present for SQLite)
              * @example localhost
@@ -141,6 +141,11 @@ export interface components {
              * @example 1000
              */
             max_rows?: number;
+            /**
+             * @description For execute_sql only. When false or omitted, the server rejects queries that project wildcards (* or table.*) or columns/CASE expressions that match PII or sensitive clinical heuristics. Set true only with explicit approval.
+             * @example false
+             */
+            allow_access_to_pii_data?: boolean;
         };
         /** @description Parameter definition for a tool */
         ToolParameter: {

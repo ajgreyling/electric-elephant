@@ -57,20 +57,20 @@ describe('execute-sql tool', () => {
       vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
 
       const handler = createExecuteSqlToolHandler('test_source');
-      const result = await handler({ sql: 'SELECT * FROM users' }, null);
+      const result = await handler({ sql: 'SELECT id, name FROM users' }, null);
       const parsedResult = parseToolResponse(result);
 
       expect(parsedResult.success).toBe(true);
       expect(parsedResult.data.rows).toEqual([{ id: 1, name: 'test' }]);
       expect(parsedResult.data.count).toBe(1);
-      expect(mockConnector.executeSQL).toHaveBeenCalledWith('SELECT * FROM users', { readonly: undefined, maxRows: undefined });
+      expect(mockConnector.executeSQL).toHaveBeenCalledWith('SELECT id, name FROM users', { readonly: undefined, maxRows: undefined });
     });
 
     it('should pass multi-statement SQL directly to connector', async () => {
       const mockResult: SQLResult = { rows: [{ id: 1 }], rowCount: 1 };
       vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
 
-      const sql = 'SELECT * FROM users; SELECT * FROM roles;';
+      const sql = 'SELECT id FROM users; SELECT id FROM roles;';
       const handler = createExecuteSqlToolHandler('test_source');
       const result = await handler({ sql }, null);
       const parsedResult = parseToolResponse(result);
@@ -83,7 +83,7 @@ describe('execute-sql tool', () => {
       vi.mocked(mockConnector.executeSQL).mockRejectedValue(new Error('Database error'));
 
       const handler = createExecuteSqlToolHandler('test_source');
-      const result = await handler({ sql: 'SELECT * FROM invalid_table' }, null);
+      const result = await handler({ sql: 'SELECT id FROM invalid_table' }, null);
 
       expect(result.isError).toBe(true);
       const parsedResult = parseToolResponse(result);
@@ -97,7 +97,10 @@ describe('execute-sql tool', () => {
     beforeEach(() => {
       // Set per-source readonly mode via tool registry (simulates TOML config)
       mockGetToolRegistry.mockReturnValue({
-        getBuiltinToolConfig: vi.fn().mockReturnValue({ readonly: true }),
+        getBuiltinToolConfig: vi.fn().mockReturnValue({
+          readonly: true,
+          allow_access_to_pii_data: true,
+        }),
       } as any);
     });
 
@@ -175,7 +178,11 @@ describe('execute-sql tool', () => {
 
     it('should enforce readonly even with other options set', async () => {
       mockGetToolRegistry.mockReturnValue({
-        getBuiltinToolConfig: vi.fn().mockReturnValue({ readonly: true, max_rows: 100 }),
+        getBuiltinToolConfig: vi.fn().mockReturnValue({
+          readonly: true,
+          max_rows: 100,
+          allow_access_to_pii_data: true,
+        }),
       } as any);
 
       const handler = createExecuteSqlToolHandler('limited_source');
@@ -188,7 +195,10 @@ describe('execute-sql tool', () => {
   describe('SQL comments handling in readonly mode', () => {
     beforeEach(() => {
       mockGetToolRegistry.mockReturnValue({
-        getBuiltinToolConfig: vi.fn().mockReturnValue({ readonly: true }),
+        getBuiltinToolConfig: vi.fn().mockReturnValue({
+          readonly: true,
+          allow_access_to_pii_data: true,
+        }),
       } as any);
     });
 
@@ -196,7 +206,6 @@ describe('execute-sql tool', () => {
       ['single-line comment', '-- Fetch users\nSELECT * FROM users'],
       ['multi-line comment', '/* Fetch all */\nSELECT * FROM products'],
       ['inline comments', 'SELECT id, -- user id\n       name FROM users'],
-      ['only comments', '-- Just a comment\n/* Another */'],
     ])('should allow SELECT with %s', async (_, sql) => {
       const mockResult: SQLResult = { rows: [], rowCount: 0 };
       vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
@@ -207,12 +216,96 @@ describe('execute-sql tool', () => {
       expect(parseToolResponse(result).success).toBe(true);
     });
 
+    it('should reject comment-only SQL in readonly mode', async () => {
+      const sql = '-- Just a comment\n/* Another */';
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql }, null);
+
+      expect(parseToolResponse(result).code).toBe('READONLY_VIOLATION');
+    });
+
+    it('should reject MySQL conditional comment bypass with mysql connector', async () => {
+      const mysqlConnector = createMockConnector('mysql', 'mysql_source');
+      mockGetCurrentConnector.mockReturnValue(mysqlConnector);
+
+      const sql = 'SELECT 1; /*!50000 DROP TABLE users */';
+      const handler = createExecuteSqlToolHandler('mysql_source');
+      const result = await handler({ sql }, null);
+
+      expect(parseToolResponse(result).code).toBe('READONLY_VIOLATION');
+    });
+
+    it('should reject MariaDB M-bang comment bypass with mariadb connector', async () => {
+      const mariadbConnector = createMockConnector('mariadb', 'mariadb_source');
+      mockGetCurrentConnector.mockReturnValue(mariadbConnector);
+
+      const sql = 'SELECT 1; /*M! DELETE FROM users */';
+      const handler = createExecuteSqlToolHandler('mariadb_source');
+      const result = await handler({ sql }, null);
+
+      expect(parseToolResponse(result).code).toBe('READONLY_VIOLATION');
+    });
+
     it('should reject write statement hidden after comment', async () => {
       const sql = '-- Insert new user\nINSERT INTO users (name) VALUES (\'test\')';
       const handler = createExecuteSqlToolHandler('test_source');
       const result = await handler({ sql }, null);
 
       expect(parseToolResponse(result).code).toBe('READONLY_VIOLATION');
+    });
+  });
+
+  describe('PII / clinical access guardrail', () => {
+    it('should block SELECT * when allow_access_to_pii_data is not enabled', async () => {
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql: 'SELECT * FROM users' }, null);
+
+      expect(result.isError).toBe(true);
+      const parsed = parseToolResponse(result);
+      expect(parsed.code).toBe('PII_ACCESS_VIOLATION');
+      expect(parsed.details?.reason).toBe('wildcard_projection');
+      expect(mockConnector.executeSQL).not.toHaveBeenCalled();
+    });
+
+    it('should block table.* projections', async () => {
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql: 'SELECT u.* FROM users u' }, null);
+
+      expect(parseToolResponse(result).code).toBe('PII_ACCESS_VIOLATION');
+      expect(mockConnector.executeSQL).not.toHaveBeenCalled();
+    });
+
+    it('should block suspected PII column names', async () => {
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql: 'SELECT id, email FROM users' }, null);
+
+      expect(parseToolResponse(result).code).toBe('PII_ACCESS_VIOLATION');
+      expect(parseToolResponse(result).details?.reason).toBe('suspected_pii_or_clinical_column');
+      expect(mockConnector.executeSQL).not.toHaveBeenCalled();
+    });
+
+    it('should allow benign column lists when guard is active', async () => {
+      const mockResult: SQLResult = { rows: [{ id: 1 }], rowCount: 1 };
+      vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql: 'SELECT id, status_code FROM orders' }, null);
+
+      expect(parseToolResponse(result).success).toBe(true);
+      expect(mockConnector.executeSQL).toHaveBeenCalled();
+    });
+
+    it('should allow wildcards when allow_access_to_pii_data is true', async () => {
+      mockGetToolRegistry.mockReturnValue({
+        getBuiltinToolConfig: vi.fn().mockReturnValue({ allow_access_to_pii_data: true }),
+      } as any);
+      const mockResult: SQLResult = { rows: [], rowCount: 0 };
+      vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
+
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql: 'SELECT * FROM users' }, null);
+
+      expect(parseToolResponse(result).success).toBe(true);
+      expect(mockConnector.executeSQL).toHaveBeenCalled();
     });
   });
 

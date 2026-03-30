@@ -3,16 +3,16 @@ title: "Overview"
 description: "A web-based interface for exploring and executing database tools"
 ---
 
-The Workbench is Badger DB MCP's built-in web interface for interacting with your database tools. It provides a visual way to execute queries, run custom tools, and view request traces without requiring an MCP client.
+The Workbench is Electric Elephant's built-in web interface for interacting with your database tools. It provides a visual way to execute queries, run custom tools, and view request traces without requiring an MCP client.
 
 ![workbench](https://raw.githubusercontent.com/bytebase/dbhub/main/docs/images/workbench/workbench.webp)
 
 ## Starting the Workbench
 
-The Workbench is available when running Badger DB MCP with HTTP transport:
+The Workbench is available when running Electric Elephant with HTTP transport:
 
 ```bash
-npx badger-db-mcp --transport http --port 8080 --dsn "postgres://..."
+npx electric-elephant --transport http --port 8080 --dsn "postgres://..."
 ```
 
 Then open `http://localhost:8080` in your browser.
@@ -20,6 +20,6 @@ Then open `http://localhost:8080` in your browser.
 <Tip>
 Try demo mode to explore the Workbench without setting up a database:
 ```bash
-npx badger-db-mcp --transport http --port 8080 --demo
+npx electric-elephant --transport http --port 8080 --demo
 ```
 </Tip>

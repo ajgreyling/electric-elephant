@@ -8,26 +8,26 @@ title: "Installation"
   <Tab title="npx">
     ```bash
     # PostgreSQL example
-    npx badger-db-mcp \
+    npx electric-elephant \
       --transport http \
       --port 8080 \
       --dsn "postgres://user:password@localhost:5432/dbname?sslmode=disable"
 
     # Or use demo mode for testing
-    npx badger-db-mcp --transport http --port 8080 --demo
+    npx electric-elephant --transport http --port 8080 --demo
     ```
   </Tab>
 
   <Tab title="Global Installation">
     ```bash
     # Install globally
-    npm install -g badger-db-mcp
+    npm install -g electric-elephant
 
     # Run the server
-    badger-db-mcp --transport http --port 8080 --dsn "postgres://..."
+    electric-elephant --transport http --port 8080 --dsn "postgres://..."
 
     # Or use demo mode for testing
-    badger-db-mcp --transport http --port 8080 --demo
+    electric-elephant --transport http --port 8080 --demo
     ```
   </Tab>
 </Tabs>
@@ -38,18 +38,18 @@ title: "Installation"
   <Tab title="Docker Run">
     ```bash
     docker run --rm --init \
-      --name badger-db-mcp \
+      --name electric-elephant \
       --publish 8080:8080 \
-      badger-db-mcp \
+      electric-elephant \
       --transport http \
       --port 8080 \
       --dsn "postgres://user:password@localhost:5432/dbname?sslmode=disable"
 
     # Or use demo mode for testing
     docker run --rm --init \
-      --name badger-db-mcp \
+      --name electric-elephant \
       --publish 8080:8080 \
-      badger-db-mcp \
+      electric-elephant \
       --transport http \
       --port 8080 \
       --demo
@@ -65,17 +65,15 @@ title: "Installation"
   </Tab>
 
   <Tab title="Docker Compose">
-    For development environments using Docker Compose, add Badger DB MCP to your `docker-compose.yml`:
+    For development environments using Docker Compose, add Electric Elephant to your `docker-compose.yml`:
 
     ```yaml docker-compose.yml
     services:
-      badger-db-mcp:
-        image: badger-db-mcp:latest
-        container_name: badger-db-mcp
+      electric-elephant:
+        image: electric-elephant:latest
+        container_name: electric-elephant
         ports:
           - "8080:8080"
-        environment:
-          - BADGER_DB_MCP_LOG_LEVEL=info
         command:
           - --transport
           - http
@@ -97,7 +95,7 @@ title: "Installation"
 
 ## Client Integration
 
-Once Badger DB MCP is installed and running, configure your MCP client to connect to it.
+Once Electric Elephant is installed and running, configure your MCP client to connect to it.
 
 ### Claude Code
 
@@ -108,24 +106,24 @@ Once Badger DB MCP is installed and running, configure your MCP client to connec
       For local database connections, use stdio transport:
 
       ```bash
-      claude mcp add --transport stdio badger-db-mcp -- npx badger-db-mcp --transport stdio --dsn "postgres://user:password@localhost:5432/dbname"
+      claude mcp add --transport stdio electric-elephant -- npx electric-elephant --transport stdio --dsn "postgres://user:password@localhost:5432/dbname"
       ```
 
       <Note>
-      The `--` separates Claude's flags from Badger DB MCP's arguments. Everything after `--` is the Badger DB MCP command.
+      The `--` separates Claude's flags from Electric Elephant's arguments. Everything after `--` is the Electric Elephant command.
       </Note>
       </Tab>
       <Tab title="HTTP">
       For remote or shared database servers, use HTTP transport:
 
       ```bash
-      claude mcp add --transport http badger-db-mcp http://localhost:8080/mcp
+      claude mcp add --transport http electric-elephant http://localhost:8080/mcp
       ```
 
-      This connects to a Badger DB MCP server running with HTTP transport:
+      This connects to a Electric Elephant server running with HTTP transport:
 
       ```bash
-      npx badger-db-mcp --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
+      npx electric-elephant --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
       ```
       </Tab>
     </Tabs>
@@ -139,11 +137,11 @@ Once Badger DB MCP is installed and running, configure your MCP client to connec
       ```json .mcp.json
       {
         "mcpServers": {
-          "badger-db-mcp": {
+          "electric-elephant": {
             "type": "stdio",
             "command": "npx",
             "args": [
-              "badger-db-mcp",
+              "electric-elephant",
               "--transport",
               "stdio",
               "--dsn",
@@ -159,11 +157,11 @@ Once Badger DB MCP is installed and running, configure your MCP client to connec
       ```json .mcp.json
       {
         "mcpServers": {
-          "badger-db-mcp": {
+          "electric-elephant": {
             "type": "stdio",
             "command": "npx",
             "args": [
-              "badger-db-mcp",
+              "electric-elephant",
               "--transport",
               "stdio",
               "--dsn",
@@ -179,7 +177,7 @@ Once Badger DB MCP is installed and running, configure your MCP client to connec
       ```json .mcp.json
       {
         "mcpServers": {
-          "badger-db-mcp": {
+          "electric-elephant": {
             "type": "http",
             "url": "http://localhost:8080/mcp"
           }
@@ -194,7 +192,7 @@ Once Badger DB MCP is installed and running, configure your MCP client to connec
     For personal configuration across all projects:
 
     ```bash
-    claude mcp add --scope user badger-db-mcp -- npx badger-db-mcp --transport stdio --dsn "postgres://user:password@localhost:5432/dbname"
+    claude mcp add --scope user electric-elephant -- npx electric-elephant --transport stdio --dsn "postgres://user:password@localhost:5432/dbname"
     ```
 
     Or manually edit the user configuration file:
@@ -210,7 +208,7 @@ Once Badger DB MCP is installed and running, configure your MCP client to connec
   </Tab>
 </Tabs>
 
-**Using Badger DB MCP:**
+**Using Electric Elephant:**
 
 Start Claude Code in your project directory:
 
@@ -218,7 +216,7 @@ Start Claude Code in your project directory:
 claude
 ```
 
-Verify Badger DB MCP is loaded:
+Verify Electric Elephant is loaded:
 
 ```bash
 /mcp
@@ -229,7 +227,7 @@ Verify Badger DB MCP is loaded:
 
 ### Claude Desktop
 
-![Claude Desktop with Badger DB MCP](https://raw.githubusercontent.com/ajgreyling/badger-db-mcp/main/docs/images/claude-desktop.webp)
+![Claude Desktop with Electric Elephant](https://raw.githubusercontent.com/ajgreyling/electric-elephant/main/docs/images/claude-desktop.webp)
 
 <Tabs>
   <Tab title="MacOS/Linux">
@@ -238,10 +236,10 @@ Verify Badger DB MCP is loaded:
     ```json ~/Library/Application Support/Claude/claude_desktop_config.json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--dsn",
@@ -259,10 +257,10 @@ Verify Badger DB MCP is loaded:
     ```json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--dsn",
@@ -280,10 +278,10 @@ Verify Badger DB MCP is loaded:
     ```json ~/Library/Application Support/Claude/claude_desktop_config.json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--demo"
@@ -305,14 +303,14 @@ Verify Badger DB MCP is loaded:
 
 ### Cursor
 
-![Cursor with Badger DB MCP](https://raw.githubusercontent.com/ajgreyling/badger-db-mcp/main/docs/images/cursor.webp)
+![Cursor with Electric Elephant](https://raw.githubusercontent.com/ajgreyling/electric-elephant/main/docs/images/cursor.webp)
 
 <Tabs>
   <Tab title="One-Click Install">
-    Click the link below to install Badger DB MCP in Cursor:
+    Click the link below to install Electric Elephant in Cursor:
 
     <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=dbhub&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAYnl0ZWJhc2UvZGJodWIiLCItLXRyYW5zcG9ydCIsInN0ZGlvIiwiLS1kc24iLCJwb3N0Z3JlczovL3VzZXI6cGFzc3dvcmRAbG9jYWxob3N0OjU0MzIvZGJuYW1lIl19">
-      <img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install Badger DB MCP server in Cursor" height="32" />
+      <img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install Electric Elephant server in Cursor" height="32" />
     </a>
 
     After installing, edit the DSN in your Cursor MCP settings to point to your database.
@@ -326,10 +324,10 @@ Verify Badger DB MCP is loaded:
     ```json ~/.cursor/mcp.json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--dsn",
@@ -345,10 +343,10 @@ Verify Badger DB MCP is loaded:
     ```json %USERPROFILE%\.cursor\mcp.json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--dsn",
@@ -368,7 +366,7 @@ Verify Badger DB MCP is loaded:
     ```json ~/.cursor/mcp.json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "url": "http://localhost:8080/mcp"
         }
       }
@@ -380,17 +378,17 @@ Verify Badger DB MCP is loaded:
     ```json %USERPROFILE%\.cursor\mcp.json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "url": "http://localhost:8080/mcp"
         }
       }
     }
     ```
 
-    This connects to a Badger DB MCP server running with HTTP transport:
+    This connects to a Electric Elephant server running with HTTP transport:
 
     ```bash
-    npx badger-db-mcp --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
+    npx electric-elephant --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
     ```
   </Tab>
 
@@ -403,7 +401,7 @@ Verify Badger DB MCP is loaded:
         "project-db": {
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--config",
@@ -430,11 +428,11 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     ```json .vscode/mcp.json
     {
       "servers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "type": "stdio",
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--dsn",
@@ -452,7 +450,7 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     ```json .vscode/mcp.json
     {
       "servers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "type": "http",
           "url": "http://localhost:8080/mcp"
         }
@@ -460,10 +458,10 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     }
     ```
 
-    This connects to a Badger DB MCP server running with HTTP transport:
+    This connects to a Electric Elephant server running with HTTP transport:
 
     ```bash
-    npx badger-db-mcp --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
+    npx electric-elephant --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
     ```
   </Tab>
 
@@ -481,11 +479,11 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
         }
       ],
       "servers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "type": "stdio",
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--dsn",
@@ -503,11 +501,11 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     ```json .vscode/mcp.json
     {
       "servers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "type": "stdio",
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--config",
@@ -535,8 +533,8 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
 
     When prompted, you'll need to provide:
     - **Server type**: select `local` (the default)
-    - **Server name**: for example, `badger-db-mcp`
-    - **Command**: `npx badger-db-mcp`
+    - **Server name**: for example, `electric-elephant`
+    - **Command**: `npx electric-elephant`
     - **Arguments**: transport (e.g., `--transport stdio`) and connection details (either `--dsn` connection string or `--demo` for the demo database)
   </Tab>
 
@@ -546,10 +544,10 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     ```json ~/.copilot/mcp-config.json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--dsn",
@@ -567,10 +565,10 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     ```json ~/.copilot/mcp-config.json
     {
       "mcpServers": {
-        "badger-db-mcp": {
+        "electric-elephant": {
           "command": "npx",
           "args": [
-            "badger-db-mcp",
+            "electric-elephant",
             "--transport",
             "stdio",
             "--demo"
@@ -591,24 +589,24 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
   <Tab title="CLI">
     ```bash
     # Connect to your database
-    codex mcp add badger-db-mcp -- npx badger-db-mcp --transport stdio --dsn "postgres://user:password@localhost:5432/dbname"
+    codex mcp add electric-elephant -- npx electric-elephant --transport stdio --dsn "postgres://user:password@localhost:5432/dbname"
 
     # Or use demo mode for testing
-    codex mcp add badger-db-mcp -- npx badger-db-mcp --transport stdio --demo
+    codex mcp add electric-elephant -- npx electric-elephant --transport stdio --demo
     ```
   </Tab>
 
   <Tab title="TOML">
     ```toml ~/.codex/config.toml
     # Connect to your database
-    [mcp_servers.badger-db-mcp]
+    [mcp_servers.electric-elephant]
     command = "npx"
-    args = ["badger-db-mcp", "--transport", "stdio", "--dsn", "postgres://user:password@localhost:5432/dbname"]
+    args = ["electric-elephant", "--transport", "stdio", "--dsn", "postgres://user:password@localhost:5432/dbname"]
 
     # Or use demo mode for testing
-    [mcp_servers.badger-db-mcp]
+    [mcp_servers.electric-elephant]
     command = "npx"
-    args = ["badger-db-mcp", "--transport", "stdio", "--demo"]
+    args = ["electric-elephant", "--transport", "stdio", "--demo"]
     ```
   </Tab>
 
@@ -618,10 +616,10 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
 
     🔌  MCP Tools
 
-      • badger-db-mcp
+      • electric-elephant
         • Status: enabled
         • Auth: Unsupported
-        • Command: npx -y badger-db-mcp --demo
+        • Command: npx -y electric-elephant --demo
         • Tools: execute_sql
         • Resources: schemas (db://schemas)
         • Resource templates: tables_in_schema (db://schemas/{schemaName}/tables), table_structure_in_schema (db://schemas/{schemaName}/
@@ -636,10 +634,10 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
 
 ### Dify
 
-Badger DB MCP must be running as an HTTP server for Dify to connect. Start Badger DB MCP with HTTP transport:
+Electric Elephant must be running as an HTTP server for Dify to connect. Start Electric Elephant with HTTP transport:
 
 ```bash
-npx badger-db-mcp --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
+npx electric-elephant --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
 ```
 
 **Configuration:**
@@ -647,17 +645,17 @@ npx badger-db-mcp --transport http --port 8080 --dsn "postgres://user:password@l
 1. In Dify, navigate to **Tools → MCP**
 2. Click **Add MCP Server (HTTP)**
 3. Configure the server:
-   - **Server URL**: `http://localhost:8080/mcp` (or your Badger DB MCP host)
-   - **Name**: `Badger DB MCP`
-   - **Server Identifier**: `badger-db-mcp` (permanent, max 24 characters)
+   - **Server URL**: `http://localhost:8080/mcp` (or your Electric Elephant host)
+   - **Name**: `Electric Elephant`
+   - **Server Identifier**: `electric-elephant` (permanent, max 24 characters)
 
-4. Click save. Dify will automatically discover Badger DB MCP's tools.
+4. Click save. Dify will automatically discover Electric Elephant's tools.
 
-**Using Badger DB MCP Tools:**
+**Using Electric Elephant Tools:**
 
-Once connected, Badger DB MCP tools are available in:
+Once connected, Electric Elephant tools are available in:
 
-- **Agents**: Tools appear alongside built-in tools, use "Add All" to enable all Badger DB MCP tools
+- **Agents**: Tools appear alongside built-in tools, use "Add All" to enable all Electric Elephant tools
 - **Workflows**: Tools appear as available node types
 
 **Multi-Database Setup:**
@@ -665,7 +663,7 @@ Once connected, Badger DB MCP tools are available in:
 For multiple databases, use a config file:
 
 ```bash
-npx badger-db-mcp --transport http --port 8080 --config /path/to/dbhub.toml
+npx electric-elephant --transport http --port 8080 --config /path/to/dbhub.toml
 ```
 
 **Demo Mode:**
@@ -673,30 +671,30 @@ npx badger-db-mcp --transport http --port 8080 --config /path/to/dbhub.toml
 For testing, use the built-in demo database:
 
 ```bash
-npx badger-db-mcp --transport http --port 8080 --demo
+npx electric-elephant --transport http --port 8080 --demo
 ```
 
 **Limitations:**
 - Dify only supports HTTP transport (not stdio)
-- Badger DB MCP must be network-accessible from Dify
+- Electric Elephant must be network-accessible from Dify
 
 **References:**
 - [Dify MCP Documentation](https://docs.dify.ai/en/guides/tools/mcp)
 
 ### LibreChat
 
-Badger DB MCP can be integrated with [LibreChat](https://www.librechat.ai/) using either **stdio** or **Streamable HTTP** transport.
+Electric Elephant can be integrated with [LibreChat](https://www.librechat.ai/) using either **stdio** or **Streamable HTTP** transport.
 
 <Tabs>
   <Tab title="stdio">
     ```yaml librechat.yaml
     mcpServers:
-      badger-db-mcp:
+      electric-elephant:
         type: stdio
         command: npx
         args:
           - -y
-          - "badger-db-mcp"
+          - "electric-elephant"
           - "--dsn"
           - "postgres://user:password@localhost:5432/dbname"
         timeout: 60000
@@ -706,12 +704,12 @@ Badger DB MCP can be integrated with [LibreChat](https://www.librechat.ai/) usin
 
     ```yaml librechat.yaml
     mcpServers:
-      badger-db-mcp:
+      electric-elephant:
         type: stdio
         command: npx
         args:
           - -y
-          - "badger-db-mcp"
+          - "electric-elephant"
           - "--demo"
         timeout: 60000
     ```
@@ -720,14 +718,14 @@ Badger DB MCP can be integrated with [LibreChat](https://www.librechat.ai/) usin
   <Tab title="Streamable HTTP">
     ```yaml librechat.yaml
     mcpServers:
-      badger-db-mcp:
+      electric-elephant:
         type: streamable-http
         url: http://host.docker.internal:8080/mcp
         timeout: 60000
     ```
 
     <Note>
-      **Docker Networking:** When LibreChat runs in Docker (e.g., with docker-compose), use `host.docker.internal:8080` to connect to Badger DB MCP running on your host machine. This is Docker's special DNS name that resolves to the host's IP address.
+      **Docker Networking:** When LibreChat runs in Docker (e.g., with docker-compose), use `host.docker.internal:8080` to connect to Electric Elephant running on your host machine. This is Docker's special DNS name that resolves to the host's IP address.
 
       For native installations, use `http://localhost:8080/mcp` instead.
     </Note>

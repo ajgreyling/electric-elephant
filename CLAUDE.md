@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# DBHub Development Guidelines
+# Electric Elephant Development Guidelines
 
-DBHub is a zero-dependency, token efficient database MCP server implementing the Model Context Protocol (MCP) server interface. This lightweight server bridges MCP-compatible clients (Claude Desktop, Claude Code, Cursor) with various database systems.
+Electric Elephant is a token-efficient PostgreSQL MCP server implementing the Model Context Protocol (MCP) server interface. It bridges MCP-compatible clients (Claude Desktop, Claude Code, Cursor) with PostgreSQL databases.
 
 ## Commands
 
@@ -23,24 +23,23 @@ The codebase follows a modular architecture centered around the MCP protocol:
 src/
 ├── connectors/          # Database-specific implementations
 │   ├── postgres/        # PostgreSQL connector
-│   ├── mysql/           # MySQL connector
-│   ├── mariadb/         # MariaDB connector
-│   ├── sqlserver/       # SQL Server connector
-│   └── sqlite/          # SQLite connector
+│   └── ...              # PostgreSQL connector support code
 ├── tools/               # MCP tool handlers
 │   ├── execute-sql.ts   # SQL execution handler
 │   └── search-objects.ts  # Unified search/list with progressive disclosure
 ├── utils/               # Shared utilities
 │   ├── dsn-obfuscator.ts# DSN security
 │   ├── response-formatter.ts # Output formatting
-│   └── allowed-keywords.ts  # Read-only SQL validation
+│   ├── allowed-keywords.ts  # Read-only SQL validation
+│   ├── pii-heuristics.ts    # Identifier heuristics for PII / clinical columns
+│   └── pii-sql-guard.ts     # Pre-execution checks for execute_sql projections
 └── index.ts             # Entry point with transport handling
 ```
 
 Key architectural patterns:
-- **Connector Registry**: Dynamic registration system for database connectors
-- **Connector Manager**: Manages database connections (single or multiple)
-  - Supports multi-database configuration via TOML
+- **Connector Registry**: Dynamic registration system for PostgreSQL connector loading
+- **Connector Manager**: Manages PostgreSQL connections (single or multiple sources)
+  - Supports multi-source PostgreSQL configuration via TOML
   - Maintains `Map<id, Connector>` for named connections
   - `getConnector(sourceId?)` returns connector by ID or default (first)
   - `getCurrentConnector(sourceId?)` static method for tool handlers
@@ -52,7 +51,8 @@ Key architectural patterns:
   - Runs in stateless mode (no SSE support) - GET requests to `/mcp` return 405 Method Not Allowed
   - Tests in `src/__tests__/json-rpc-integration.test.ts`
 - **Tool Handlers**: Clean separation of MCP protocol concerns
-  - Tools accept optional `source_id` parameter for multi-database routing
+  - Tools accept optional `source_id` parameter for multi-source PostgreSQL routing
+- **PII / clinical column guard (`execute_sql`)**: Unless `allow_access_to_pii_data` is explicitly true (TOML per tool, or single-DSN `--allow-access-to-pii-data=true` / `ALLOW_ACCESS_TO_PII_DATA`), the server blocks wildcard projections (`*`, `table.*`) and SELECT/RETURNING items that match PII or sensitive clinical heuristics. Violations return structured errors with code `PII_ACCESS_VIOLATION`. Logic lives in `src/utils/pii-sql-guard.ts` and `src/utils/pii-heuristics.ts`, wired from `src/tools/execute-sql.ts`.
 - **Token-Efficient Schema Exploration**: Unified search/list tool with progressive disclosure
   - `search_objects`: Single tool for both pattern-based search and listing all objects
   - Pattern parameter defaults to `%` (match all) - optional for listing use cases
@@ -63,10 +63,10 @@ Key architectural patterns:
 
 ## Configuration
 
-DBHub supports three configuration methods (in priority order):
+Electric Elephant supports three configuration methods (in priority order):
 
-### 1. TOML Configuration File (Multi-Database)
-**Recommended for projects requiring multiple database connections**
+### 1. TOML Configuration File (PostgreSQL Sources)
+**Recommended for projects requiring one or more PostgreSQL connections**
 
 - Create `dbhub.toml` in your project directory or use `--config=path/to/config.toml`
 - Configuration structure:
@@ -81,19 +81,16 @@ DBHub supports three configuration methods (in priority order):
   query_timeout = 30
 
   [[sources]]
-  id = "staging_mysql"
-  type = "mysql"
-  host = "localhost"
-  database = "staging"
-  user = "root"
-  password = "secret"
+  id = "staging_pg"
+  dsn = "postgres://user:pass@localhost:5432/staging"
 
-  # Tool configuration (readonly, max_rows are tool-level settings)
+  # Tool configuration (readonly, max_rows, allow_access_to_pii_data are tool-level)
   [[tools]]
   name = "execute_sql"
   source = "prod_pg"
   readonly = true
   max_rows = 1000
+  # allow_access_to_pii_data = true  # opt-in only with explicit policy; default blocks sensitive projections
   ```
 - Key files:
   - `src/types/config.ts`: TypeScript interfaces for TOML structure
@@ -101,7 +98,7 @@ DBHub supports three configuration methods (in priority order):
   - `src/config/__tests__/toml-loader.test.ts`: Comprehensive test suite
 - Features:
   - Per-source settings: SSH tunnels, timeouts, SSL configuration
-  - Per-tool settings: `readonly`, `max_rows` (configured in `[[tools]]` section, not `[[sources]]`)
+  - Per-tool settings: `readonly`, `max_rows`, `allow_access_to_pii_data` (in `[[tools]]`, not `[[sources]]`)
   - Custom tools: Define reusable, parameterized SQL operations
   - Path expansion for `~/` in file paths
   - Automatic password redaction in logs
@@ -110,20 +107,21 @@ DBHub supports three configuration methods (in priority order):
 - See `dbhub.toml.example` for complete configuration reference
 - Documentation: https://dbhub.ai/config/toml
 
-### 2. Environment Variables (Single Database)
-- Copy `.env.example` to `.env` and configure for your database connection
+### 2. Environment Variables (Single PostgreSQL Database)
+- Copy `.env.example` to `.env` and configure for your PostgreSQL connection
 - Two ways to configure:
-  - Set `DSN` to a full connection string (recommended)
-  - Set individual parameters: `DB_TYPE`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+  - Set `DSN` to a full PostgreSQL connection string (recommended)
+  - Set individual parameters: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
 - SSH tunnel via environment: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PASSWORD`, `SSH_KEY`, `SSH_PASSPHRASE`
 
-### 3. Command-Line Arguments (Single Database, Highest Priority)
-- `--dsn`: Database connection string
+### 3. Command-Line Arguments (Single PostgreSQL Database, Highest Priority)
+- `--dsn`: PostgreSQL connection string
 - `--transport`: `stdio` (default) or `http` for streamable HTTP transport (endpoint: `/mcp`)
 - `--port`: HTTP server port (default: 8080)
 - `--config`: Path to TOML configuration file
-- `--demo`: Use bundled SQLite employee database
 - `--allow-destructive-sql`: Allow INSERT/UPDATE/DELETE etc. (single-DSN mode only; without this, server defaults to read-only)
+- `--allow-access-to-pii-data=true`: Allow `execute_sql` to run queries that would otherwise be blocked by the PII/clinical guard (single-DSN mode only; bare flag is ignored; TOML `allow_access_to_pii_data` is preferred for multi-source)
+- Environment (single-DSN): `ALLOW_ACCESS_TO_PII_DATA` (true/1/yes) — same effect as the CLI flag when true
 - `--max-rows`: Limit rows returned from SELECT queries (deprecated - use TOML configuration instead)
 - SSH tunnel options: `--ssh-host`, `--ssh-port`, `--ssh-user`, `--ssh-password`, `--ssh-key`, `--ssh-passphrase`
 - Documentation: https://dbhub.ai/config/command-line
@@ -134,19 +132,11 @@ DBHub supports three configuration methods (in priority order):
 3. Environment variables
 4. `.env` files (`.env.local` in development, `.env` in production)
 
-## Database Connectors
+## PostgreSQL Connector
 
-- Add new connectors in `src/connectors/{db-type}/index.ts`
-- Implement the `Connector` and `DSNParser` interfaces from `src/interfaces/connector.ts`
-- Register connector with `ConnectorRegistry.register(connector)`
-- DSN Examples:
-  - PostgreSQL: `postgres://user:password@localhost:5432/dbname?sslmode=disable`
-  - MySQL: `mysql://user:password@localhost:3306/dbname?sslmode=disable`
-  - MariaDB: `mariadb://user:password@localhost:3306/dbname?sslmode=disable`
-  - SQL Server: `sqlserver://user:password@localhost:1433/dbname?sslmode=disable`
-  - SQL Server (named instance): `sqlserver://user:password@localhost:1433/dbname?instanceName=ENV1`
-  - SQL Server (NTLM): `sqlserver://user:password@localhost:1433/dbname?authentication=ntlm&domain=MYDOMAIN`
-  - SQLite: `sqlite:///path/to/database.db` or `sqlite:///:memory:`
+- Primary connector implementation: `src/connectors/postgres/index.ts`
+- Implements the `Connector` and `DSNParser` interfaces from `src/interfaces/connector.ts`
+- DSN example: `postgres://user:password@localhost:5432/dbname?sslmode=disable`
 - SSL modes: `sslmode=disable` (no SSL) or `sslmode=require` (SSL without cert verification)
 
 ## Testing Approach
@@ -157,15 +147,15 @@ For detailed guidance on running and troubleshooting tests, refer to the [testin
 
 Key points:
 - Unit tests for individual components and utilities
-- Integration tests using Testcontainers for real database testing
-- All connectors have comprehensive integration test coverage
+- Integration tests using Testcontainers for real PostgreSQL testing
+- PostgreSQL connector has comprehensive integration test coverage
 - Pre-commit hooks run related tests automatically
-- Test specific databases: `pnpm test src/connectors/__tests__/{db-type}.integration.test.ts`
+- Test PostgreSQL connector: `pnpm test src/connectors/__tests__/postgres.integration.test.ts`
 - SSH tunnel tests: `pnpm test postgres-ssh-simple.integration.test.ts`
 
 ## SSH Tunnel Support
 
-DBHub supports SSH tunnels for secure database connections through bastion hosts:
+Electric Elephant supports SSH tunnels for secure database connections through bastion hosts:
 
 - Configuration via command-line options: `--ssh-host`, `--ssh-port`, `--ssh-user`, `--ssh-password`, `--ssh-key`, `--ssh-passphrase`
 - Configuration via environment variables: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PASSWORD`, `SSH_KEY`, `SSH_PASSPHRASE`

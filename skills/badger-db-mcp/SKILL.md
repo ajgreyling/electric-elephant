@@ -1,22 +1,32 @@
 ---
-name: badger-db-mcp
-description: Guide for querying databases through Badger DB MCP server. Use this skill whenever you need to explore database schemas, inspect tables, or run SQL queries via Badger DB MCP's MCP tools (search_objects, execute_sql). Activates on any database query task, schema exploration, data retrieval, or SQL execution through MCP — even if the user just says "check the database" or "find me some data." This skill ensures you follow the correct explore-first workflow instead of guessing table structures.
+name: electric-elephant
+description: Guide for querying databases through Electric Elephant server. Use this skill whenever you need to explore database schemas, inspect tables, or run SQL queries via Electric Elephant's MCP tools (search_objects, execute_sql). Activates on any database query task, schema exploration, data retrieval, or SQL execution through MCP — even if the user just says "check the database" or "find me some data." This skill ensures you follow the correct explore-first workflow instead of guessing table structures.
 ---
 
-# Badger DB MCP Database Query Guide
+# Electric Elephant Database Query Guide
 
-When working with databases through Badger DB MCP's MCP server, always follow the **explore-then-query** pattern. Jumping straight to SQL without understanding the schema is the most common mistake — it leads to failed queries, wasted tokens, and frustrated users.
+When working with databases through Electric Elephant's MCP server, always follow the **explore-then-query** pattern. Jumping straight to SQL without understanding the schema is the most common mistake — it leads to failed queries, wasted tokens, and frustrated users.
 
 ## Available Tools
 
-Badger DB MCP provides two MCP tools:
+Electric Elephant provides two MCP tools:
 
 | Tool | Purpose |
 |------|---------|
 | `search_objects` | Explore database structure — schemas, tables, columns, indexes, procedures, functions |
 | `execute_sql` | Run SQL statements against the database |
 
-If multiple databases are configured, Badger DB MCP registers separate tools for each source (for example, `search_objects_prod_pg`, `execute_sql_staging_mysql`). Select the desired database by calling the correspondingly named tool.
+If multiple PostgreSQL sources are configured, Electric Elephant registers separate tools for each source (for example, `search_objects_prod_pg`, `execute_sql_staging_pg`). Select the desired source by calling the correspondingly named tool.
+
+### PII and clinical column guard (`execute_sql`)
+
+By default, `execute_sql` uses a **fail-closed** guard: it can reject queries that use `SELECT *` / `table.*` or that list columns or aliases matching PII or sensitive clinical heuristics. The tool response uses code **`PII_ACCESS_VIOLATION`** with a reason such as `wildcard_projection` or `suspected_pii_or_clinical_column`.
+
+**Agent behavior:**
+
+- Prefer **explicit column lists** after inspecting columns with `search_objects` — do not rely on `SELECT *`.
+- If you hit `PII_ACCESS_VIOLATION`, narrow the projection to non-sensitive columns or ask the user to enable `allow_access_to_pii_data` in TOML (or single-DSN env/CLI) only if their policy allows it.
+- Full details: project `docs/tools/execute-sql.mdx` (PII and clinical data guard).
 
 ## The Explore-Then-Query Workflow
 
@@ -28,7 +38,7 @@ Every database task should follow this progression. The key insight is that each
 search_objects(object_type="schema", detail_level="names")
 ```
 
-This tells you the lay of the land. Most databases have a primary schema (e.g., `public` in PostgreSQL, `dbo` in SQL Server) plus system schemas you can ignore.
+This tells you the lay of the land. Most PostgreSQL databases use `public` as the primary schema, plus system schemas you can ignore.
 
 ### Step 2: Find relevant tables
 
@@ -84,21 +94,21 @@ The `detail_level` parameter controls how much information `search_objects` retu
 
 **Rule of thumb:** Use `names` for broad exploration, `summary` for narrowing down, and `full` only for the specific tables you'll query.
 
-## Working with Multiple Databases
+## Working with Multiple PostgreSQL Sources
 
-When Badger DB MCP is configured with multiple database sources, it registers separate tool instances for each source. The tool names follow the pattern `{tool}_{source_id}`:
+When Electric Elephant is configured with multiple PostgreSQL sources, it registers separate tool instances for each source. The tool names follow the pattern `{tool}_{source_id}`:
 
 ```
 # Query the production PostgreSQL database
 search_objects_prod_pg(object_type="table", schema="public", detail_level="names")
 execute_sql_prod_pg(sql="SELECT count(*) FROM orders")
 
-# Query the staging MySQL database
-search_objects_staging_mysql(object_type="table", detail_level="names")
-execute_sql_staging_mysql(sql="SELECT count(*) FROM orders")
+# Query the staging PostgreSQL database
+search_objects_staging_pg(object_type="table", schema="public", detail_level="names")
+execute_sql_staging_pg(sql="SELECT count(*) FROM public.orders")
 ```
 
-In single-database setups, the tools are simply `search_objects` and `execute_sql` without any suffix. When the user mentions a specific database or environment, call the correspondingly named tool.
+In single-source setups, the tools are simply `search_objects` and `execute_sql` without any suffix. When the user mentions a specific PostgreSQL environment, call the correspondingly named tool.
 
 ## Searching for Specific Objects
 
@@ -137,6 +147,7 @@ If the user provides exact SQL, you can execute it directly. But if it fails wit
 When a query fails:
 - **Unknown table/column**: Use `search_objects` to find the correct names rather than guessing variations
 - **Schema errors**: List available schemas first — the table may be in a different schema than expected
+- **`PII_ACCESS_VIOLATION`**: Wildcard or sensitive-looking projection blocked; use explicit safe columns or policy-approved `allow_access_to_pii_data`
 - **Permission errors**: The database may be in read-only mode; check if only SELECT statements are allowed
 - **Multiple statements**: `execute_sql` supports multiple SQL statements separated by `;`
 
@@ -144,5 +155,5 @@ When a query fails:
 
 - **Don't guess table or column names.** Always verify with `search_objects` first. A wrong guess wastes a round trip and confuses the conversation.
 - **Don't dump entire schemas upfront.** Use progressive disclosure — start with `names`, drill into `full` only for tables you'll actually query.
-- **Don't use the wrong tool in multi-database setups.** If the user mentions a specific database, call the source-specific tool variant (e.g., `execute_sql_prod_pg`) rather than the generic `execute_sql`.
+- **Don't use the wrong tool in multi-source setups.** If the user mentions a specific PostgreSQL environment, call the source-specific tool variant (e.g., `execute_sql_prod_pg`) rather than the generic `execute_sql`.
 - **Don't retry failed queries blindly.** If SQL fails, investigate the schema to understand why before retrying.

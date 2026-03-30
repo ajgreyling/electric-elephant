@@ -162,7 +162,7 @@ export function parseSSHConfig(
 
     // ProxyCommand is not supported (requires shell execution)
     if (hostConfig.ProxyCommand) {
-      console.error('Warning: ProxyCommand in SSH config is not supported by DBHub. Use ProxyJump instead.');
+      console.error('Warning: ProxyCommand in SSH config is not supported by Electric Elephant. Use ProxyJump instead.');
     }
 
     // Validate that we have minimum required fields
