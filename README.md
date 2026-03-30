@@ -4,14 +4,14 @@
   <img src="assets/elelctric-elephant-logo.png" alt="Electric Elephant MCP — robotic elephant logo with glowing cyan accents on black" width="420" />
 </p>
 
-Electric Elephant is a token-efficient MCP server for exploring and querying SQL databases from MCP-capable clients.
+Electric Elephant is a token-efficient MCP server for exploring and querying **PostgreSQL** from MCP-capable clients. It is **not** a generic SQL bridge: only PostgreSQL is supported (not MySQL, SQLite, SQL Server, Oracle, or other engines).
 
 Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyling/electric-elephant)
 
 ## Purpose
 
-- Expose database access through MCP tools.
-- Support PostgreSQL databases.
+- Expose PostgreSQL through MCP tools (`execute_sql`, `search_objects`, and related wiring).
+- PostgreSQL-only: no connectors or compatibility layers for other SQL databases.
 - Provide safe defaults (read-only unless explicitly enabled for destructive SQL).
 - Heuristic PII/clinical guard on `execute_sql` (wildcards and sensitive-looking columns blocked unless explicitly opted in via TOML, env, or CLI — see `docs/tools/execute-sql.mdx` and `CLAUDE.md`).
 
@@ -48,8 +48,8 @@ flowchart LR
     C --> D{Tool}
     D -->|execute_sql| E[Connector Manager]
     D -->|search_objects| E
-    E --> F[Database Connector]
-    F --> G[(Database)]
+    E --> F[PostgreSQL connector]
+    F --> G[(PostgreSQL)]
     G --> F --> E --> C --> A
 ```
 

@@ -91,3 +91,4 @@ $RECYCLE.BIN/
 *.o
 *.so 
 .cursor/mcp.json
+.cursor/mcp.json

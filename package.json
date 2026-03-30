@@ -1,6 +1,6 @@
 {
   "name": "electric-elephant",
-  "version": "0.21.9",
+  "version": "0.21.10",
   "mcpName": "electric-elephant",
   "description": "Electric Elephant — PostgreSQL-only, readonly-first, token-efficient MCP server",
   "repository": {
