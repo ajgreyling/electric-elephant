@@ -23,8 +23,8 @@ const __dirname = path.dirname(__filename);
  *
  * @example
  * ```ts
- * const configPath = fixtureTomlPath('multi-sqlite');
- * // Returns: /absolute/path/to/src/__fixtures__/toml/multi-sqlite.toml
+ * const configPath = fixtureTomlPath('readonly-maxrows');
+ * // Returns: /absolute/path/to/src/__fixtures__/toml/readonly-maxrows.toml
  * ```
  */
 export function fixtureTomlPath(fixtureName: string): string {
@@ -41,7 +41,7 @@ export function fixtureTomlPath(fixtureName: string): string {
  *
  * @example
  * ```ts
- * const { sources, tools } = loadFixtureConfig('multi-sqlite');
+ * const { sources, tools } = loadFixtureConfig('readonly-maxrows');
  * // Returns: { sources: [...], tools: [...] }
  * ```
  */
@@ -83,7 +83,7 @@ export function loadFixtureConfig(fixtureName: string): { sources: SourceConfig[
  *
  * @example
  * ```ts
- * const manager = await setupManagerWithFixture('multi-sqlite');
+ * const manager = await setupManagerWithFixture('readonly-maxrows');
  * const connector = manager.getConnector('database_a');
  * await connector.executeSQL('SELECT * FROM users', {});
  *
@@ -103,6 +103,5 @@ export async function setupManagerWithFixture(fixtureName: string): Promise<Conn
  * Available TOML test fixtures
  */
 export const FIXTURES = {
-  MULTI_SQLITE: 'multi-sqlite',
   READONLY_MAXROWS: 'readonly-maxrows',
 } as const;

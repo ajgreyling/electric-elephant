@@ -2,14 +2,14 @@
 title: "Quickstart"
 ---
 
-This guide will walk you through setting up Electric Elephant and connecting it to an AI tool for the first time. We'll use demo mode to get started quickly, then show you how to connect to your own database.
+This guide walks you through running Electric Elephant and connecting it to an AI tool. You need a reachable **PostgreSQL** instance (local Docker, managed service, or tunneled host).
 
 ## Prerequisites
 
 Before starting, ensure you have:
-- Node.js 20+ installed (for NPM method) **OR** Docker installed
+- Node.js 20+ installed (for NPM method) **or** Docker installed
 - Access to an AI tool (Claude Desktop, Claude Code, Cursor, or VS Code)
-- Optionally: A PostgreSQL, MySQL, or other supported database
+- A PostgreSQL server and a connection string (or `dbhub.toml` / `DB_*` variables)
 
 ## Choose Your Transport
 
@@ -20,44 +20,31 @@ Electric Elephant supports two [transport protocols](/config/command-line#transp
 | **stdio** | AI tool spawns Electric Elephant as a subprocess | Local desktop apps, single-user setups |
 | **http** | Electric Elephant runs as a standalone HTTP server | Web clients, shared servers, remote access |
 
-## Step 1: Start Electric Elephant in Demo Mode
+## Step 1: Start Electric Elephant (HTTP)
 
 <Note>
-If using **stdio** transport, skip this step - your AI tool will spawn Electric Elephant as a subprocess automatically.
+If using **stdio** transport, skip this step — your AI tool will spawn Electric Elephant as a subprocess and pass `--dsn` or equivalent configuration.
 </Note>
 
-For **http** transport, start Electric Elephant server manually:
+For **http** transport, start the server with a Postgres DSN (adjust user, password, host, and database):
 
 <Tabs>
   <Tab title="NPM">
     ```bash
-    npx electric-elephant --transport http --port 8080 --demo
+    npx electric-elephant --transport http --port 8080 --dsn "postgres://postgres:postgres@localhost:5432/postgres"
     ```
   </Tab>
 
   <Tab title="Docker">
     ```bash
-    docker run --rm -p 8080:8080 electric-elephant --transport http --port 8080 --demo
+    docker run --rm -p 8080:8080 electric-elephant --transport http --port 8080 --dsn "postgres://postgres:postgres@host.docker.internal:5432/postgres"
     ```
+
+    On Linux hosts where `host.docker.internal` is unavailable, use `--network host` or point the DSN at a container-accessible address.
   </Tab>
 </Tabs>
 
-The server will start at `http://localhost:8080`. The workbench is available at the root (`/`), and the MCP endpoint is at `/mcp`.
-
-```text
-Running in DEMO mode - using sample employee database
-
-(ASCII startup banner printed to stderr)
-
-v0.x.x [DEMO] - PostgreSQL-Only, Readonly-First MCP Server
-
-Workbench at http://localhost:8080/
-MCP server endpoint at http://localhost:8080/mcp
-```
-
-<Tip>
-Demo mode includes a sample SQLite "employee" database with realistic data.
-</Tip>
+The server listens at `http://localhost:8080`. The workbench is at `/`, and the MCP endpoint is at `/mcp`.
 
 ## Step 2: Connect with Your AI Tool
 
@@ -89,7 +76,7 @@ Choose your AI tool and follow the setup instructions in the [Client Integration
 
 ## Step 3: Try It Out
 
-Try these example prompts in your AI tool:
+Try these example prompts in your AI tool (adapt table names to your schema):
 
 <AccordionGroup>
   <Accordion icon="database" title="List available schemas">
@@ -97,7 +84,7 @@ Try these example prompts in your AI tool:
     What schemas are available in the database?
     ```
 
-    The AI will use the `db://schemas` resource to list all schemas.
+    The AI will use the `db://schemas` resource to list schemas.
   </Accordion>
 
   <Accordion icon="table" title="Show tables in a schema">
@@ -108,51 +95,41 @@ Try these example prompts in your AI tool:
     The AI will use the `db://schemas/public/tables` resource.
   </Accordion>
 
-  <Accordion icon="magnifying-glass" title="Query employee data">
+  <Accordion icon="magnifying-glass" title="Run a read query">
     ```
-    Show me the top 5 employees by salary
-    ```
-
-    The AI will generate and execute SQL like:
-    ```sql
-    SELECT emp_no, first_name, last_name, salary FROM employees ORDER BY salary DESC LIMIT 5;
+    Show the first 10 rows from my_table with explicit columns
     ```
 
     <Note>
-    With the default [PII/clinical guard](/tools/execute-sql#pii-and-clinical-data-guard), `SELECT *` may be rejected; explicit columns are preferred after inspecting the table with `search_objects`.
+    With the default [PII/clinical guard](/tools/execute-sql#pii-and-clinical-data-guard), `SELECT *` may be rejected; prefer explicit columns after inspecting the table with `search_objects`.
     </Note>
   </Accordion>
 
   <Accordion icon="pen" title="Change data">
     ```
-    Update the salary of employee 10001 to 100000
-    ```
-
-    The AI will generate and execute SQL like:
-    ```sql
-    UPDATE salaries SET salary = 100000 WHERE emp_no = 10001;
+    Update a row in my_table (give a safe predicate)
     ```
 
     <Note>
-    This only works when the `execute_sql` tool is not configured with `readonly = true`. See [Read-Only Mode](/tools/execute-sql#read-only-mode).
+    Mutating SQL requires `execute_sql` not configured with `readonly = true`, and may require `--allow-destructive-sql`. See [Read-Only Mode](/tools/execute-sql#read-only-mode).
     </Note>
   </Accordion>
 </AccordionGroup>
 
 ## Step 4: Install the Agent Skill (Optional)
 
-Electric Elephant provides an [agent skill](https://github.com/ajgreyling/electric-elephant/tree/main/skills/badger-db-mcp) that teaches your AI tool the best-practice workflow for database querying — explore the schema first, then write precise SQL. This reduces errors and back-and-forth.
+Electric Elephant provides an [agent skill](https://github.com/ajgreyling/electric-elephant/tree/main/skills/badger-db-mcp) that teaches your AI tool the best-practice workflow for database querying — explore the schema first, then write precise SQL.
 
 ```bash
 npx skills add ajgreyling/electric-elephant
 ```
 
-The skill guides the AI to follow the **explore-then-query** pattern: discover schemas, find tables, inspect table structure, then write targeted queries. It works with all supported AI tools.
+## Step 5: Production-style configuration
 
-## Step 5: Connect to Your Own Database
+<Card title="DSN and CLI flags" icon="link" href="/config/command-line#dsn">
+  PostgreSQL connection strings, transport, ports, and environment variables.
+</Card>
 
-Once you've verified Electric Elephant works in demo mode, connect it to your actual database.
-
-<Card title="DSN Configuration" icon="link" href="/config/command-line#dsn">
-  Complete connection string formats and options for PostgreSQL, MySQL, MariaDB, SQL Server, and SQLite.
+<Card title="TOML (multiple sources)" icon="file" href="/config/toml">
+  `dbhub.toml` for several Postgres sources, tool defaults, and SSH tunnels.
 </Card>

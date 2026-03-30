@@ -10,7 +10,6 @@ export interface SourceDisplayInfo {
   host: string;
   database: string;
   readonly: boolean;
-  isDemo: boolean;
   tools: string[];
 }
 
@@ -37,11 +36,6 @@ function parseHostAndDatabase(source: SourceConfig): { host: string; database: s
   if (source.dsn) {
     const parsed = parseConnectionInfoFromDSN(source.dsn);
     if (parsed) {
-      // For SQLite, there's no host - just show the database path
-      if (parsed.type === "sqlite") {
-        return { host: "", database: parsed.database || ":memory:" };
-      }
-      // For other databases, construct host:port string
       if (!parsed.host) {
         return { host: "", database: parsed.database || "" };
       }
@@ -108,12 +102,7 @@ export function generateStartupTable(sources: SourceDisplayInfo[]): string {
   );
   const modeWidth = Math.max(
     10,
-    ...sources.map((s) => {
-      const modes: string[] = [];
-      if (s.isDemo) modes.push("DEMO");
-      if (s.readonly) modes.push("READ-ONLY");
-      return modes.join(" ").length;
-    })
+    ...sources.map((s) => (s.readonly ? "READ-ONLY".length : 0))
   );
 
   // Total width: left border (1) + space + idTypeWidth + space + separator (1) + space + hostDbWidth + space + separator (1) + space + modeWidth + space + right border (1)
@@ -141,7 +130,6 @@ export function generateStartupTable(sources: SourceDisplayInfo[]): string {
 
     // Mode indicators
     const modes: string[] = [];
-    if (source.isDemo) modes.push("DEMO");
     if (source.readonly) modes.push("READ-ONLY");
     const modeStr = fitString(modes.join(" "), modeWidth);
 
@@ -176,19 +164,17 @@ export function generateStartupTable(sources: SourceDisplayInfo[]): string {
  */
 export function buildSourceDisplayInfo(
   sourceConfigs: SourceConfig[],
-  getToolsForSource: (sourceId: string) => string[],
-  isDemo: boolean
+  getToolsForSource: (sourceId: string) => string[]
 ): SourceDisplayInfo[] {
   return sourceConfigs.map((source) => {
     const { host, database } = parseHostAndDatabase(source);
 
     return {
       id: source.id,
-      type: source.type || "sqlite",
+      type: source.type || "postgres",
       host,
       database,
       readonly: source.readonly || false,
-      isDemo,
       tools: getToolsForSource(source.id),
     };
   });

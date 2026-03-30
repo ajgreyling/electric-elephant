@@ -98,6 +98,7 @@ Electric Elephant supports three configuration methods (in priority order):
   - `src/config/__tests__/toml-loader.test.ts`: Comprehensive test suite
 - Features:
   - Per-source settings: SSH tunnels, timeouts, SSL configuration
+  - Default query timeout: **300 seconds** when `query_timeout` is omitted for non-SQLite sources (override in TOML)
   - Per-tool settings: `readonly`, `max_rows`, `allow_access_to_pii_data` (in `[[tools]]`, not `[[sources]]`)
   - Custom tools: Define reusable, parameterized SQL operations
   - Path expansion for `~/` in file paths

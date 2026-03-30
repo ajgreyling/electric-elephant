@@ -7,7 +7,7 @@ import type { Connector, ConnectorType, TableColumn, TableIndex } from '../../co
 vi.mock('../../connectors/manager.js');
 
 // Mock connector for testing
-const createMockConnector = (id: ConnectorType = 'sqlite'): Connector => ({
+const createMockConnector = (id: ConnectorType = 'postgres'): Connector => ({
   id,
   name: 'Mock Connector',
   getId: () => 'default',
@@ -35,7 +35,7 @@ describe('search_database_objects tool', () => {
   const mockGetCurrentConnector = vi.mocked(ConnectorManager.getCurrentConnector);
 
   beforeEach(() => {
-    mockConnector = createMockConnector('sqlite');
+    mockConnector = createMockConnector('postgres');
     mockGetCurrentConnector.mockReturnValue(mockConnector);
   });
 

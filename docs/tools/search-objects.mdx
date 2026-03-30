@@ -200,13 +200,10 @@ When using `detail_level: "summary"` or `"full"`, the tool includes database com
 - **Column descriptions** appear as the `description` field on each column (full level only)
 - Fields are omitted when no comment is set, keeping responses token-efficient
 
-| Database   | Table Comments | Column Comments |
-|------------|---------------|-----------------|
-| PostgreSQL | `COMMENT ON TABLE` | `COMMENT ON COLUMN` |
-| MySQL      | `ALTER TABLE ... COMMENT` | `ALTER TABLE ... MODIFY COLUMN ... COMMENT` |
-| MariaDB    | `ALTER TABLE ... COMMENT` | `ALTER TABLE ... MODIFY COLUMN ... COMMENT` |
-| SQL Server | `sp_addextendedproperty` (MS_Description) | `sp_addextendedproperty` (MS_Description) |
-| SQLite     | Not supported | Not supported |
+| Feature | PostgreSQL |
+|---------|------------|
+| Table comments | `COMMENT ON TABLE` |
+| Column comments | `COMMENT ON COLUMN` |
 
 ## Usage Patterns
 

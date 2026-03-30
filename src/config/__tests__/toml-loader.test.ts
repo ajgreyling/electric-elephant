@@ -45,8 +45,8 @@ dsn = "postgres://user:pass@localhost:5432/app"
   it("rejects non-postgres source types", () => {
     const tomlContent = `
 [[sources]]
-id = "mysql"
-type = "mysql"
+id = "unsupported_engine"
+type = "mongodb"
 host = "localhost"
 database = "app"
 user = "root"
@@ -71,17 +71,17 @@ password = "secret"
   });
 
   it("buildDSNFromSource rejects unsupported source type", () => {
-    const source: SourceConfig = {
+    const source = {
       id: "bad",
-      type: "mysql" as SourceConfig["type"],
+      type: "mongodb",
       host: "localhost",
       database: "app",
       user: "root",
       password: "secret",
-    };
+    } as unknown as SourceConfig;
 
     expect(() => buildDSNFromSource(source)).toThrow(
-      "unsupported source type 'mysql'. PostgreSQL-only mode requires type = \"postgres\"."
+      "unsupported source type 'mongodb'. PostgreSQL-only mode requires type = \"postgres\"."
     );
   });
 

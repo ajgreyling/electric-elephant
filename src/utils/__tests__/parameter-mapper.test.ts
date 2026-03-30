@@ -101,16 +101,6 @@ describe("Parameter Mapper", () => {
       expect(() => validateParameterStyle(sql, "postgres")).not.toThrow();
     });
 
-    it("should accept positional parameters for mysql", () => {
-      const sql = "SELECT * FROM users WHERE id = ?";
-      expect(() => validateParameterStyle(sql, "mysql")).not.toThrow();
-    });
-
-    it("should accept named parameters for sqlserver", () => {
-      const sql = "SELECT * FROM users WHERE id = @p1";
-      expect(() => validateParameterStyle(sql, "sqlserver")).not.toThrow();
-    });
-
     it("should reject positional parameters for postgres", () => {
       const sql = "SELECT * FROM users WHERE id = ?";
       expect(() => validateParameterStyle(sql, "postgres")).toThrow(
@@ -118,18 +108,16 @@ describe("Parameter Mapper", () => {
       );
     });
 
-    it("should reject numbered parameters for mysql", () => {
-      const sql = "SELECT * FROM users WHERE id = $1";
-      expect(() => validateParameterStyle(sql, "mysql")).toThrow(
-        /Invalid parameter syntax for mysql/
+    it("should reject named parameters (@p1) for postgres", () => {
+      const sql = "SELECT * FROM users WHERE id = @p1";
+      expect(() => validateParameterStyle(sql, "postgres")).toThrow(
+        /Invalid parameter syntax for postgres/
       );
     });
 
-    it("should accept SQL without parameters for any connector", () => {
+    it("should accept SQL without parameters", () => {
       const sql = "SELECT * FROM users";
       expect(() => validateParameterStyle(sql, "postgres")).not.toThrow();
-      expect(() => validateParameterStyle(sql, "mysql")).not.toThrow();
-      expect(() => validateParameterStyle(sql, "sqlserver")).not.toThrow();
     });
   });
 

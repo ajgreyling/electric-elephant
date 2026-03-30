@@ -147,26 +147,26 @@ describe("ConnectorManager IAM DSN rewrite", () => {
 
     const manager = new ConnectorManager();
     const source: SourceConfig = {
-      id: "mysql_iam",
-      type: "mysql",
+      id: "pg_iam",
+      type: "postgres",
       host: "mydb.abc123.eu-west-1.rds.amazonaws.com",
-      port: 3306,
+      port: 5432,
       database: "mydb",
       user: "dbuser@example.com",
       aws_iam_auth: true,
       aws_region: "eu-west-1",
-      dsn: "mysql://dbuser%40example.com:ignored@mydb.abc123.eu-west-1.rds.amazonaws.com:3306/mydb?connectTimeout=5000&sslmode=disable",
+      dsn: "postgres://dbuser%40example.com:ignored@mydb.abc123.eu-west-1.rds.amazonaws.com:5432/mydb?connectTimeout=5000&sslmode=disable",
     };
 
     const dsn = await (manager as any).buildConnectionDSN(source);
 
     expect(mocks.generateRdsAuthToken).toHaveBeenCalledWith({
       hostname: "mydb.abc123.eu-west-1.rds.amazonaws.com",
-      port: 3306,
+      port: 5432,
       username: "dbuser@example.com",
       region: "eu-west-1",
     });
-    expect(dsn).toContain("mysql://dbuser%40example.com:token%20with%20spaces%2F%2B%3F%3D@");
+    expect(dsn).toContain("postgres://dbuser%40example.com:token%20with%20spaces%2F%2B%3F%3D@");
     expect(dsn).toContain("connectTimeout=5000");
     expect(dsn).toContain("sslmode=require");
     expect(dsn).not.toContain("sslmode=disable");

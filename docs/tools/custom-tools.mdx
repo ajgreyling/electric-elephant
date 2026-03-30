@@ -92,56 +92,22 @@ required = false
 allowed_values = ["pending", "processing", "shipped", "delivered"]
 ```
 
-### Multiple Database Types
+### Parameter placeholders
 
-The same tool pattern works across different databases, just adjust the parameter placeholder syntax:
+Electric Elephant supports PostgreSQL-style numbered placeholders (`$1`, `$2`, …):
 
-<Tabs>
-  <Tab title="PostgreSQL">
-    ```toml
-    [[tools]]
-    name = "get_product"
-    description = "Get product by ID"
-    source = "postgres_db"
-    statement = "SELECT * FROM products WHERE id = $1"
+```toml
+[[tools]]
+name = "get_product"
+description = "Get product by ID"
+source = "postgres_db"
+statement = "SELECT * FROM products WHERE id = $1"
 
-    [[tools.parameters]]
-    name = "product_id"
-    type = "integer"
-    description = "Product ID"
-    ```
-  </Tab>
-
-  <Tab title="MySQL/MariaDB/SQLite">
-    ```toml
-    [[tools]]
-    name = "get_product"
-    description = "Get product by ID"
-    source = "mysql_db"
-    statement = "SELECT * FROM products WHERE id = ?"
-
-    [[tools.parameters]]
-    name = "product_id"
-    type = "integer"
-    description = "Product ID"
-    ```
-  </Tab>
-
-  <Tab title="SQL Server">
-    ```toml
-    [[tools]]
-    name = "get_product"
-    description = "Get product by ID"
-    source = "sqlserver_db"
-    statement = "SELECT * FROM products WHERE id = @p1"
-
-    [[tools.parameters]]
-    name = "product_id"
-    type = "integer"
-    description = "Product ID"
-    ```
-  </Tab>
-</Tabs>
+[[tools.parameters]]
+name = "product_id"
+type = "integer"
+description = "Product ID"
+```
 
 See [Parameter Placeholders](/config/toml#parameters) for syntax reference.
 

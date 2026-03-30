@@ -15,7 +15,7 @@ describe('normalizeSourceId', () => {
 
   it('should convert dots to underscores', () => {
     expect(normalizeSourceId('dev.db')).toBe('dev_db');
-    expect(normalizeSourceId('prod.mysql.instance')).toBe('prod_mysql_instance');
+    expect(normalizeSourceId('prod.replica.instance')).toBe('prod_replica_instance');
   });
 
   it('should convert multiple special characters', () => {
@@ -48,7 +48,7 @@ describe('normalizeSourceId', () => {
 
   it('should work with real-world source IDs', () => {
     expect(normalizeSourceId('prod-postgres-001')).toBe('prod_postgres_001');
-    expect(normalizeSourceId('staging.mysql.v2')).toBe('staging_mysql_v2');
-    expect(normalizeSourceId('dev_sqlite_local')).toBe('dev_sqlite_local');
+    expect(normalizeSourceId('staging.replica.v2')).toBe('staging_replica_v2');
+    expect(normalizeSourceId('dev_analytics_local')).toBe('dev_analytics_local');
   });
 });

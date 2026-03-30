@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { ConnectorManager } from "../connectors/manager.js";
-import { getDatabaseTypeFromDSN } from "../utils/dsn-obfuscate.js";
+import { getDatabaseTypeFromDSN, parseConnectionInfoFromDSN } from "../utils/dsn-obfuscate.js";
 import { getToolsForSource } from "../utils/tool-metadata.js";
 import type { SourceConfig } from "../types/config.js";
 import type { components } from "./openapi.js";
@@ -26,6 +26,12 @@ function transformSourceConfig(source: SourceConfig): DataSource {
     throw new Error(`Source ${source.id} is missing required type field`);
   }
 
+  const fromDsn = source.dsn ? parseConnectionInfoFromDSN(source.dsn) : null;
+  const host = source.host ?? fromDsn?.host;
+  const port = source.port !== undefined ? source.port : fromDsn?.port;
+  const database = source.database ?? fromDsn?.database;
+  const user = source.user ?? fromDsn?.user;
+
   const dataSource: DataSource = {
     id: source.id,
     type: source.type,
@@ -37,17 +43,17 @@ function transformSourceConfig(source: SourceConfig): DataSource {
   }
 
   // Add connection details (excluding password)
-  if (source.host) {
-    dataSource.host = source.host;
+  if (host) {
+    dataSource.host = host;
   }
-  if (source.port !== undefined) {
-    dataSource.port = source.port;
+  if (port !== undefined) {
+    dataSource.port = port;
   }
-  if (source.database) {
-    dataSource.database = source.database;
+  if (database) {
+    dataSource.database = database;
   }
-  if (source.user) {
-    dataSource.user = source.user;
+  if (user) {
+    dataSource.user = user;
   }
 
   // Add SSH tunnel configuration (excluding credentials)

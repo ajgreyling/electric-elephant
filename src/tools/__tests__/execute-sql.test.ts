@@ -9,7 +9,7 @@ vi.mock('../../connectors/manager.js');
 vi.mock('../registry.js');
 
 // Mock connector for testing
-const createMockConnector = (id: ConnectorType = 'sqlite', sourceId: string = 'default'): Connector => ({
+const createMockConnector = (id: ConnectorType = 'postgres', sourceId: string = 'default'): Connector => ({
   id,
   name: 'Mock Connector',
   getId: () => sourceId,
@@ -38,7 +38,7 @@ describe('execute-sql tool', () => {
   const mockGetToolRegistry = vi.mocked(getToolRegistry);
 
   beforeEach(() => {
-    mockConnector = createMockConnector('sqlite');
+    mockConnector = createMockConnector('postgres');
     mockGetCurrentConnector.mockReturnValue(mockConnector);
 
     // Mock tool registry to return empty config (no readonly, no max_rows)
@@ -224,23 +224,9 @@ describe('execute-sql tool', () => {
       expect(parseToolResponse(result).code).toBe('READONLY_VIOLATION');
     });
 
-    it('should reject MySQL conditional comment bypass with mysql connector', async () => {
-      const mysqlConnector = createMockConnector('mysql', 'mysql_source');
-      mockGetCurrentConnector.mockReturnValue(mysqlConnector);
-
+    it('should reject batch when second statement is only a strippable comment', async () => {
       const sql = 'SELECT 1; /*!50000 DROP TABLE users */';
-      const handler = createExecuteSqlToolHandler('mysql_source');
-      const result = await handler({ sql }, null);
-
-      expect(parseToolResponse(result).code).toBe('READONLY_VIOLATION');
-    });
-
-    it('should reject MariaDB M-bang comment bypass with mariadb connector', async () => {
-      const mariadbConnector = createMockConnector('mariadb', 'mariadb_source');
-      mockGetCurrentConnector.mockReturnValue(mariadbConnector);
-
-      const sql = 'SELECT 1; /*M! DELETE FROM users */';
-      const handler = createExecuteSqlToolHandler('mariadb_source');
+      const handler = createExecuteSqlToolHandler('test_source');
       const result = await handler({ sql }, null);
 
       expect(parseToolResponse(result).code).toBe('READONLY_VIOLATION');
@@ -281,6 +267,14 @@ describe('execute-sql tool', () => {
 
       expect(parseToolResponse(result).code).toBe('PII_ACCESS_VIOLATION');
       expect(parseToolResponse(result).details?.reason).toBe('suspected_pii_or_clinical_column');
+      expect(mockConnector.executeSQL).not.toHaveBeenCalled();
+    });
+
+    it('should block clinical / blood-work style column names', async () => {
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql: 'SELECT id, blood_glucose FROM labs' }, null);
+
+      expect(parseToolResponse(result).code).toBe('PII_ACCESS_VIOLATION');
       expect(mockConnector.executeSQL).not.toHaveBeenCalled();
     });
 

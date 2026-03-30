@@ -228,7 +228,7 @@ function registerCustomTool(
   const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
   const dbType = sourceConfig.type;
 
-  const isReadOnly = isReadOnlySQL(toolConfig.statement!, dbType);
+  const isReadOnly = isReadOnlySQL(toolConfig.statement!);
   const zodSchema = buildZodSchemaFromParameters(toolConfig.parameters);
 
   server.registerTool(

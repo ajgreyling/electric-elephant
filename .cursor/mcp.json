@@ -1,5 +1,8 @@
 {
   "mcpServers": {
+    "electric-elephant-dev": {
+      "url": "http://localhost:8080/mcp"
+    },
     "db-chatbot-staging-sams-sedfa": {
       "command": "npx",
       "args": [

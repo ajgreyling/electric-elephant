@@ -13,12 +13,11 @@ import { join } from "node:path";
 
 const distDir = join(import.meta.dirname, "..", "dist");
 
-// Find connector chunk files (e.g. postgres-B7YSSZMH.js, mysql-I35IQ2GH.js)
 const files = await readdir(distDir);
 const connectorFiles = files.filter(
   (f) =>
     f.endsWith(".js") &&
-    /^(postgres|mysql|mariadb|sqlite|sqlserver|demo-loader)-/.test(f)
+    /^postgres-/.test(f)
 );
 
 if (connectorFiles.length === 0) {

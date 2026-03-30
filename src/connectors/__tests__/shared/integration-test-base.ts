@@ -265,7 +265,7 @@ export abstract class IntegrationTestBase<TContainer extends TestContainer> {
           const ageColumn = schema.find(col => col.column_name === 'age');
           expect(ageColumn?.description).toBeNull();
         } else {
-          // Databases without comment support (SQLite) should return null
+          // If the engine has no comment metadata, expect null
           for (const col of schema) {
             expect(col.description).toBeNull();
           }

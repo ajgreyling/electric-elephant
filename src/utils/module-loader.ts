@@ -1,12 +1,12 @@
 // Matches the package name from Node.js ERR_MODULE_NOT_FOUND messages:
 //   Cannot find package 'pg' imported from ...
-//   Cannot find module 'mysql2/promise' ...
+//   Cannot find module 'pg' ...
 const MISSING_MODULE_RE = /Cannot find (?:package|module) '([^']+)'/;
 
 /**
  * Check if an error is an ERR_MODULE_NOT_FOUND for a specific driver package.
- * Matches the exact package name or a subpath import (e.g. "mysql2/promise"
- * matches driver "mysql2"), but not unrelated packages that happen to contain
+ * Matches the exact package name or a related module name, but not unrelated
+ * packages that happen to contain
  * the driver name as a substring (e.g. "pg-connection-string" does not match "pg").
  */
 export function isDriverNotInstalled(err: unknown, driver: string): boolean {

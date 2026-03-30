@@ -352,18 +352,12 @@ function validateSourceConfig(source: SourceConfig, configPath: string): void {
     }
   }
 
-  // Authentication fields are not supported in PostgreSQL-only mode.
-  if (source.authentication !== undefined) {
-    throw new Error(
-      `Configuration file ${configPath}: source '${source.id}' has authentication, but PostgreSQL-only mode does not support this field.`
-    );
-  }
-
-  // Domain is not supported in PostgreSQL-only mode.
-  if (source.domain !== undefined) {
-    throw new Error(
-      `Configuration file ${configPath}: source '${source.id}' has domain, but PostgreSQL-only mode does not support this field.`
-    );
+  for (const unsupported of ["authentication", "domain", "instanceName"] as const) {
+    if ((source as Record<string, unknown>)[unsupported] !== undefined) {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' has '${unsupported}', which is not supported (PostgreSQL only).`
+      );
+    }
   }
 
   // Validate search_path (PostgreSQL only)

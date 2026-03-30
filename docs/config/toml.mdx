@@ -2,13 +2,13 @@
 title: "TOML Configuration"
 ---
 
-TOML configuration is the recommended way to configure Electric Elephant for multi-database setups and advanced configurations. It provides more flexibility than command-line options or environment variables.
+TOML configuration is the recommended way to configure Electric Elephant for **multiple PostgreSQL sources** and advanced settings. It provides more flexibility than command-line options or environment variables alone.
 
 ## Overview
 
 TOML configuration enables:
-- **Multi-database support**: Connect to multiple databases from a single Electric Elephant instance
-- **Per-source settings**: Configure timeouts, SSL, SSH tunnels, and lazy connections individually per database
+- **Multiple Postgres sources**: Connect to several PostgreSQL databases from one Electric Elephant instance
+- **Per-source settings**: Configure timeouts, SSL, SSH tunnels, and lazy connections per source
 - **Per-tool settings**: Apply different restrictions (readonly, max_rows, PII/clinical guard) per tool
 - **Custom tools**: Define reusable, parameterized SQL operations as MCP tools
 - **Environment variable interpolation**: Use `${VAR}` syntax to avoid hardcoding credentials
@@ -49,10 +49,11 @@ dsn = "postgres://readonly_user:${DB_PASSWORD}@db.example.com:5432/mydb"
 
 [[sources]]
 id = "staging"
-type = "mysql"
+type = "postgres"
 host = "${STAGING_HOST}"
+port = 5432
 database = "myapp"
-user = "root"
+user = "app_user"
 password = "${STAGING_PASSWORD}"
 ssh_host = "bastion.example.com"
 ssh_password = "${SSH_PASSWORD}"
@@ -89,7 +90,7 @@ connection_timeout = 60
 
 [[sources]]
 id = "staging"
-dsn = "mysql://root:pass@localhost:3306/myapp"
+dsn = "postgres://app_user:pass@localhost:5432/myapp_staging"
 
 # Configure tools for each source
 [[tools]]
@@ -156,19 +157,14 @@ Sources define database connections. Each source represents a database that Elec
 
       [[sources]]
       id = "staging"
-      dsn = "mysql://root:pass@localhost:3306/myapp_staging"
-
-      [[sources]]
-      id = "local"
-      dsn = "sqlite:///./dev.db"
+      dsn = "postgres://app_user:pass@localhost:5432/myapp_staging"
       ```
     </Tab>
 
-    <Tab title="Individual Parameters">
-      Alternative to DSN: specify connection details individually. Useful for passwords with special characters (no URL encoding needed).
+    <Tab title="Individual parameters">
+      Alternative to DSN: specify connection details individually. Useful when passwords contain characters that are awkward in URLs.
 
       ```toml
-      # PostgreSQL with SSL
       [[sources]]
       id = "production"
       type = "postgres"
@@ -176,39 +172,8 @@ Sources define database connections. Each source represents a database that Elec
       port = 5432
       database = "myapp"
       user = "app_user"
-      password = "p@ss:word"  # No URL encoding needed
+      password = "p@ss:word"
       sslmode = "require"
-
-      # SQL Server with named instance
-      [[sources]]
-      id = "sqlserver_dev"
-      type = "sqlserver"
-      host = "localhost"
-      port = 1433
-      database = "mydb"
-      user = "sa"
-      password = "YourPassword123"
-      instanceName = "SQLEXPRESS"
-
-      # SQL Server with NTLM
-      [[sources]]
-      id = "corp_sqlserver"
-      type = "sqlserver"
-      host = "sqlserver.corp.local"
-      database = "app_db"
-      user = "jsmith"
-      password = "secret"
-      authentication = "ntlm"
-      domain = "CORP"
-
-      # SQL Server with Azure AD (no password)
-      [[sources]]
-      id = "azure_sqlserver"
-      type = "sqlserver"
-      host = "myserver.database.windows.net"
-      database = "mydb"
-      user = "admin@tenant.onmicrosoft.com"
-      authentication = "azure-active-directory-access-token"
       ```
     </Tab>
   </Tabs>
@@ -219,7 +184,7 @@ Sources define database connections. Each source represents a database that Elec
 <ParamField path="connection_timeout" type="number">
   Connection timeout in seconds. The maximum time to wait when establishing a database connection.
 
-  Supported databases: PostgreSQL, MySQL, MariaDB, SQL Server (not applicable to SQLite).
+  Applies to PostgreSQL connections.
 
   ```toml
   [[sources]]
@@ -235,20 +200,20 @@ Sources define database connections. Each source represents a database that Elec
 
 ### query_timeout
 
-<ParamField path="query_timeout" type="number">
+<ParamField path="query_timeout" type="number" default="300">
   Query timeout in seconds. The maximum time to wait for a query to complete before timing out.
 
-  Supported databases: PostgreSQL, MySQL, MariaDB, SQL Server (not applicable to SQLite).
+  Applies to PostgreSQL connections. If you omit this field, the server applies a **300 second (5 minute)** client-side default.
 
   ```toml
   [[sources]]
   id = "production"
   dsn = "postgres://user:pass@localhost:5432/mydb"
-  query_timeout = 30  # 30 seconds
+  query_timeout = 30  # optional override — e.g. 30 seconds
   ```
 
   <Note>
-  This option is **only available via TOML**. There is no CLI flag for query timeout.
+  Custom timeouts are configured in TOML only (no CLI flag). The 5-minute default also applies when you start from a single DSN or environment variables without a `query_timeout` in the resolved source.
   </Note>
 </ParamField>
 
@@ -284,7 +249,7 @@ Sources define database connections. Each source represents a database that Elec
   - `disable` - No SSL/TLS encryption. Data is transmitted in plaintext.
   - `require` - SSL/TLS encryption enabled, but server certificate is not verified.
 
-  Supported databases: PostgreSQL, MySQL, MariaDB, SQL Server (not applicable to SQLite).
+  Use with PostgreSQL connections (`disable` or `require`).
 
   ```toml
   [[sources]]
@@ -296,61 +261,6 @@ Sources define database connections. Each source represents a database that Elec
   <Tip>
   Can also be set via DSN query parameter: `?sslmode=require`
   </Tip>
-</ParamField>
-
-### instanceName
-
-<ParamField path="instanceName" type="string">
-  SQL Server named instance. Use when connecting to a specific SQL Server instance (e.g., SQLEXPRESS, ENV1).
-
-  **SQL Server only.**
-
-  ```toml
-  [[sources]]
-  id = "sqlserver_env1"
-  dsn = "sqlserver://sa:password@localhost:1433/mydb"
-  instanceName = "ENV1"
-  ```
-
-  <Tip>
-  Can also be set via DSN query parameter: `?instanceName=ENV1`
-  </Tip>
-</ParamField>
-
-### authentication
-
-<ParamField path="authentication" type="string">
-  SQL Server authentication method. **SQL Server only.**
-
-  **Options:**
-  - `ntlm` - Windows/NTLM authentication. Requires `domain` parameter.
-  - `azure-active-directory-access-token` - Azure AD authentication. Token is fetched automatically using Azure SDK.
-
-  ```toml
-  [[sources]]
-  id = "sqlserver_corp"
-  dsn = "sqlserver://user:pass@localhost:1433/mydb"
-  authentication = "ntlm"
-  domain = "CORP"
-  ```
-
-  <Tip>
-  Can also be set via DSN query parameter: `?authentication=ntlm&domain=CORP`
-  </Tip>
-</ParamField>
-
-### domain
-
-<ParamField path="domain" type="string">
-  Windows domain for NTLM authentication. **Required when `authentication=ntlm`. SQL Server only.**
-
-  ```toml
-  [[sources]]
-  id = "sqlserver_corp"
-  dsn = "sqlserver://user:pass@localhost:1433/mydb"
-  authentication = "ntlm"
-  domain = "CORP"
-  ```
 </ParamField>
 
 ### search_path
@@ -540,15 +450,11 @@ Tools define MCP tools (like `execute_sql`) with specific execution settings. To
   | `default` | any | ❌ | Default value if parameter not provided |
   | `allowed_values` | array | ❌ | List of allowed values (creates enum validation) |
 
-  **Parameter Placeholders by Database:**
+  **Parameter placeholders (PostgreSQL):**
 
-  | Database | Syntax | Example |
-  |----------|--------|---------|
-  | PostgreSQL | `$1`, `$2`, `$3` | `WHERE id = $1 AND status = $2` |
-  | MySQL | `?`, `?`, `?` | `WHERE id = ? AND status = ?` |
-  | MariaDB | `?`, `?`, `?` | `WHERE id = ? AND status = ?` |
-  | SQLite | `?`, `?`, `?` | `WHERE id = ? AND status = ?` |
-  | SQL Server | `@p1`, `@p2`, `@p3` | `WHERE id = @p1 AND status = @p2` |
+  | Syntax | Example |
+  |--------|---------|
+  | `$1`, `$2`, `$3` | `WHERE id = $1 AND status = $2` |
 
   <Warning>
   The number of parameters must match the number of placeholders in your SQL statement. Validation occurs at server startup.
@@ -603,7 +509,7 @@ Tools define MCP tools (like `execute_sql`) with specific execution settings. To
 ## Complete Example
 
 ```toml dbhub.toml
-# Multi-database configuration with different tool settings
+# Multiple PostgreSQL sources with different tool settings
 
 [[sources]]
 id = "production"
@@ -630,8 +536,8 @@ ssh_user = "ubuntu"
 ssh_key = "~/.ssh/staging_key"
 
 [[sources]]
-id = "local_sqlite"
-dsn = "sqlite:///./data/local.db"
+id = "local_dev"
+dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 
 # Production tool - read-only with row limits
 [[tools]]
@@ -650,7 +556,7 @@ max_rows = 5000
 # Local tool - full access, unlimited rows
 [[tools]]
 name = "execute_sql"
-source = "local_sqlite"
+source = "local_dev"
 readonly = false
 
 # Custom tool - search employees with parameters
@@ -683,11 +589,8 @@ default = 10
 | `dsn` | string | ✅ | Database connection string |
 | `lazy` | boolean | ❌ | Defer connection until first query (default: `false`) |
 | `connection_timeout` | number | ❌ | Connection timeout (seconds) |
-| `query_timeout` | number | ❌ | Query timeout (seconds) |
+| `query_timeout` | number | ❌ | Query timeout (seconds); default **300** (5 min) when omitted |
 | `sslmode` | string | ❌ | SSL mode: `disable`, `require` |
-| `instanceName` | string | ❌ | SQL Server named instance |
-| `authentication` | string | ❌ | SQL Server auth method |
-| `domain` | string | ❌ | Windows domain (NTLM) |
 | `search_path` | string | ❌ | PostgreSQL schema search path (comma-separated) |
 | `ssh_host` | string | ❌ | SSH server hostname |
 | `ssh_port` | number | ❌ | SSH server port (default: 22) |

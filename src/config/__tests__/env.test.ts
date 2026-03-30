@@ -55,14 +55,14 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
   });
 
   it("rejects non-postgres DB_TYPE values", () => {
-    process.env.DB_TYPE = "mysql";
+    process.env.DB_TYPE = "mongodb";
     process.env.DB_HOST = "localhost";
     process.env.DB_USER = "user";
     process.env.DB_PASSWORD = "pass";
     process.env.DB_NAME = "db";
 
     expect(() => buildDSNFromEnvParams()).toThrow(
-      "Unsupported DB_TYPE: mysql. Supported types: postgres, postgresql"
+      "Unsupported DB_TYPE: mongodb. Supported types: postgres, postgresql"
     );
   });
 
@@ -81,7 +81,7 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
   });
 
   it("rejects non-postgres DSN in resolveSourceConfigs", async () => {
-    process.argv = ["node", "script.js", "--dsn=mysql://root:pass@localhost:3306/db"];
+    process.argv = ["node", "script.js", "--dsn=redis://localhost:6379/0"];
 
     await expect(resolveSourceConfigs()).rejects.toThrow(
       "PostgreSQL-only mode supports postgres/postgresql DSNs only"

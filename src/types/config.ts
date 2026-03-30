@@ -1,5 +1,5 @@
 /**
- * Configuration types for TOML-based multi-database setup
+ * Configuration types for TOML-based PostgreSQL setup
  */
 
 /**
@@ -27,7 +27,7 @@ export interface SSHConfig {
  * Database connection parameters (alternative to DSN)
  */
 export interface ConnectionParams {
-  type: "postgres" | "mysql" | "mariadb" | "sqlserver" | "sqlite";
+  type?: "postgres";
   host?: string;
   port?: number;
   database?: string;
@@ -35,11 +35,7 @@ export interface ConnectionParams {
   password?: string;
   aws_iam_auth?: boolean; // Enable AWS IAM auth token generation for RDS
   aws_region?: string; // AWS region required when aws_iam_auth is enabled
-  instanceName?: string; // SQL Server named instance support
-  sslmode?: "disable" | "require"; // SSL mode for network databases (not applicable to SQLite)
-  // SQL Server authentication options
-  authentication?: "ntlm" | "azure-active-directory-access-token";
-  domain?: string; // Required for NTLM authentication
+  sslmode?: "disable" | "require";
 }
 
 /**
@@ -50,8 +46,8 @@ export interface SourceConfig extends ConnectionParams, SSHConfig {
   description?: string; // Human-readable description of this data source
   dsn?: string;
   connection_timeout?: number; // Connection timeout in seconds
-  query_timeout?: number; // Query timeout in seconds (PostgreSQL, MySQL, MariaDB, SQL Server)
-  init_script?: string; // Optional SQL script to run on connection (for demo mode or initialization)
+  query_timeout?: number; // Query timeout in seconds
+  init_script?: string; // Optional SQL script to run on connection
   lazy?: boolean; // Defer connection until first query (default: false)
   search_path?: string; // Comma-separated list of schemas for PostgreSQL search_path (e.g., "myschema,public")
 }

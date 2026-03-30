@@ -140,7 +140,7 @@ export class PostgresConnector implements Connector {
         const schemas = config.searchPath.split(',').map(s => s.trim()).filter(s => s.length > 0);
         if (schemas.length > 0) {
           this.defaultSchema = schemas[0];
-          const quotedSchemas = schemas.map(s => quoteIdentifier(s, 'postgres'));
+          const quotedSchemas = schemas.map((s) => quoteIdentifier(s));
           // Escape backslashes then spaces for PostgreSQL options string parser
           const optionsValue = quotedSchemas.join(',').replace(/\\/g, '\\\\').replace(/ /g, '\\ ');
           poolConfig.options = (poolConfig.options || '') + ` -c search_path=${optionsValue}`;
@@ -534,7 +534,7 @@ export class PostgresConnector implements Connector {
     const client = await this.pool.connect();
     try {
       // Check if this is a multi-statement query
-      const statements = splitSQLStatements(sql, "postgres");
+      const statements = splitSQLStatements(sql);
 
       if (statements.length === 1) {
         // Single statement - apply maxRows if applicable

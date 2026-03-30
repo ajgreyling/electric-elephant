@@ -108,7 +108,7 @@ async function getTableRowCount(
     }
 
     // Fallback: COUNT(*) for connectors without a statistics-based implementation
-    const qualifiedTable = quoteQualifiedIdentifier(tableName, schemaName, connector.id);
+    const qualifiedTable = quoteQualifiedIdentifier(tableName, schemaName);
     const countQuery = `SELECT COUNT(*) as count FROM ${qualifiedTable}`;
     const result = await connector.executeSQL(countQuery, { maxRows: 1 });
 

@@ -74,13 +74,4 @@ describe("explain_plan tool", () => {
     expect(parsed.code).toBe("INVALID_SQL_INPUT");
   });
 
-  it("rejects non-postgres connectors", async () => {
-    mockGetCurrentConnector.mockReturnValue(createMockConnector("sqlite"));
-    const handler = createExplainPlanToolHandler();
-    const result = await handler({ sql: "SELECT 1" }, null);
-    const parsed = parseToolResponse(result);
-
-    expect(result.isError).toBe(true);
-    expect(parsed.code).toBe("UNSUPPORTED_DATABASE");
-  });
 });

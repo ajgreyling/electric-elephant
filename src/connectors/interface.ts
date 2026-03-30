@@ -1,7 +1,7 @@
 /**
- * Type definition for supported database connector types
+ * Supported database connector type (PostgreSQL only).
  */
-export type ConnectorType = "postgres" | "mysql" | "mariadb" | "sqlite" | "sqlserver";
+export type ConnectorType = "postgres";
 
 /**
  * Database Connector Interface
@@ -56,15 +56,13 @@ export interface ExecuteOptions {
  * Different databases may use different subset of these options
  */
 export interface ConnectorConfig {
-  /** Connection timeout in seconds (PostgreSQL, MySQL, MariaDB, SQL Server) */
+  /** Connection timeout in seconds */
   connectionTimeoutSeconds?: number;
-  /** Query timeout in seconds (PostgreSQL, MySQL, MariaDB, SQL Server) */
+  /** Query timeout in seconds */
   queryTimeoutSeconds?: number;
   /**
-   * Read-only mode for SDK-level enforcement (PostgreSQL, SQLite)
-   * - PostgreSQL: Sets default_transaction_read_only at connection level
-   * - SQLite: Opens database in readonly mode (not supported for :memory: databases)
-   * Note: Application-level validation is done via ExecuteOptions.readonly
+   * Read-only mode for SDK-level enforcement (PostgreSQL: default_transaction_read_only).
+   * Application-level validation is done via ExecuteOptions.readonly.
    */
   readonly?: boolean;
   /**
@@ -81,14 +79,8 @@ export interface ConnectorConfig {
  */
 export interface DSNParser {
   /**
-   * Parse a connection string into connector-specific configuration
-   * @param dsn - Database connection string
-   * @param config - Optional database-specific configuration options
-   * Example DSN formats:
-   * - PostgreSQL: "postgres://user:password@localhost:5432/dbname?sslmode=disable"
-   * - MariaDB: "mariadb://user:password@localhost:3306/dbname"
-   * - MySQL: "mysql://user:password@localhost:3306/dbname"
-   * - SQLite: "sqlite:///path/to/database.db" or "sqlite:///:memory:"
+   * Parse a PostgreSQL connection string into connector-specific configuration.
+   * Example: "postgres://user:password@localhost:5432/dbname?sslmode=disable"
    */
   parse(dsn: string, config?: ConnectorConfig): Promise<any>;
 
@@ -133,11 +125,7 @@ export interface Connector {
 
   /**
    * Get all tables in the database or in a specific schema
-   * @param schema Optional schema name. If not provided, implementation should use the default schema:
-   *   - PostgreSQL: 'public' schema
-   *   - SQL Server: 'dbo' schema
-   *   - MySQL: Current active database from connection (DATABASE())
-   *   - SQLite: Main database (schema concept doesn't exist in SQLite)
+   * @param schema Optional schema name. If not provided, uses the default schema (e.g. `public`).
    * @returns Promise with array of table names
    */
   getTables(schema?: string): Promise<string[]>;
@@ -195,7 +183,7 @@ export interface Connector {
 
   /**
    * Get the comment/description for a table.
-   * Optional — connectors that don't support table comments (e.g. SQLite) may omit this.
+   * Optional — omit if not supported.
    * @returns The table comment string, or null if no comment is set
    */
   getTableComment?(tableName: string, schema?: string): Promise<string | null>;
@@ -256,8 +244,8 @@ export class ConnectorRegistry {
   /**
    * Get all available sample DSNs
    */
-  static getAllSampleDSNs(): { [key in ConnectorType]?: string } {
-    const samples: { [key in ConnectorType]?: string } = {};
+  static getAllSampleDSNs(): Partial<Record<ConnectorType, string>> {
+    const samples: Partial<Record<ConnectorType, string>> = {};
     for (const [id, connector] of ConnectorRegistry.connectors.entries()) {
       samples[id] = connector.dsnParser.getSampleDSN();
     }

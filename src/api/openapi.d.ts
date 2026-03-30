@@ -66,22 +66,22 @@ export interface components {
              */
             type: "postgres";
             /**
-             * @description Database host (not present for SQLite)
+             * @description Database server hostname
              * @example localhost
              */
             host?: string;
             /**
-             * @description Database port (not present for SQLite)
+             * @description Database server TCP port
              * @example 5432
              */
             port?: number;
             /**
-             * @description Database name or file path (for SQLite)
+             * @description Database name
              * @example production
              */
             database?: string;
             /**
-             * @description Database username (not present for SQLite)
+             * @description Database username
              * @example dbuser
              */
             user?: string;

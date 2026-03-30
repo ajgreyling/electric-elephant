@@ -62,13 +62,13 @@ export function createExplainPlanToolHandler(sourceId?: string) {
       }
 
       const normalizedSql = normalizeExplainInput(sql);
-      const statements = splitSQLStatements(normalizedSql, connector.id);
+      const statements = splitSQLStatements(normalizedSql);
       if (statements.length !== 1) {
         success = false;
         errorMessage = "explain_plan accepts exactly one SQL statement";
         return createToolErrorResponse(errorMessage, "INVALID_SQL_INPUT");
       }
-      if (!isReadOnlySQL(statements[0], connector.id)) {
+      if (!isReadOnlySQL(statements[0])) {
         success = false;
         errorMessage = "explain_plan only supports read-only SQL statements";
         return createToolErrorResponse(errorMessage, "READONLY_VIOLATION");

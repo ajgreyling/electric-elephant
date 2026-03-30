@@ -1,4 +1,4 @@
-# DBHub Multi-Database Configuration
+# Electric Elephant / dbhub.toml — PostgreSQL sources
 #
 # Documentation: https://dbhub.ai/config/toml
 #
@@ -84,111 +84,6 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # # Note: While each jump host can have a different username, the same SSH key (or password)
 # #       specified in ssh_key/ssh_password will be used for authentication to ALL hosts in the chain
 # ssh_proxy_jump = "bastion.company.com,admin@jump2.internal:2222"
-
-# ============================================================================
-# MYSQL (Local development)
-# ============================================================================
-
-# [[sources]]
-# id = "local_mysql"
-# dsn = "mysql://root:mysql@localhost:3306/myapp"
-
-# MySQL on AWS RDS with IAM authentication (no password in config)
-# [[sources]]
-# id = "rds_mysql_iam"
-# type = "mysql"
-# host = "mydb.abc123.eu-west-1.rds.amazonaws.com"
-# port = 3306
-# database = "myapp"
-# user = "dbuser@example.com"
-# aws_iam_auth = true
-# aws_region = "eu-west-1"
-# sslmode = "require"
-
-# ============================================================================
-# MARIADB (Local development)
-# ============================================================================
-
-# [[sources]]
-# id = "local_mariadb"
-# dsn = "mariadb://root:mariadb@localhost:3306/myapp"
-
-# MariaDB on AWS RDS with IAM authentication (no password in config)
-# [[sources]]
-# id = "rds_mariadb_iam"
-# type = "mariadb"
-# host = "mydb.abc123.eu-west-1.rds.amazonaws.com"
-# port = 3306
-# database = "myapp"
-# user = "dbuser@example.com"
-# aws_iam_auth = true
-# aws_region = "eu-west-1"
-# sslmode = "require"
-
-# ============================================================================
-# SQL SERVER (Local development)
-# ============================================================================
-
-# [[sources]]
-# id = "local_sqlserver"
-# dsn = "sqlserver://sa:YourStrong@Passw0rd@localhost:1433/myapp"
-# # For named instances, use:
-# # dsn = "sqlserver://sa:YourStrong@Passw0rd@localhost:1433/myapp?instanceName=SQLEXPRESS"
-# query_timeout = 60  # Query timeout in seconds (works for all databases except SQLite)
-
-# SQL Server - Individual parameters (use when password contains special characters)
-# [[sources]]
-# id = "local_sqlserver"
-# type = "sqlserver"
-# host = "localhost"
-# port = 1433
-# database = "myapp"
-# user = "sa"
-# password = "YourStrong@Passw0rd"
-# instanceName = "SQLEXPRESS"  # Optional: for named instances
-# sslmode = "disable"          # Optional: "disable" or "require"
-
-# SQL Server with Windows/NTLM authentication (DSN format)
-# [[sources]]
-# id = "corp_sqlserver"
-# dsn = "sqlserver://jsmith:secret@sqlserver.corp.local:1433/app_db?authentication=ntlm&domain=CORP"
-
-# SQL Server with Windows/NTLM authentication (individual parameters)
-# [[sources]]
-# id = "corp_sqlserver"
-# type = "sqlserver"
-# host = "sqlserver.corp.local"
-# port = 1433
-# database = "app_db"
-# user = "jsmith"
-# password = "secret"
-# authentication = "ntlm"      # Required for Windows auth
-# domain = "CORP"              # Required when authentication = "ntlm"
-
-# SQL Server with Azure AD authentication (no password required)
-# [[sources]]
-# id = "azure_sqlserver"
-# type = "sqlserver"
-# host = "myserver.database.windows.net"
-# port = 1433
-# database = "mydb"
-# user = "admin@mytenant.onmicrosoft.com"
-# authentication = "azure-active-directory-access-token"
-# sslmode = "require"
-
-# ============================================================================
-# SQLITE (Local file or in-memory)
-# ============================================================================
-
-# File-based SQLite
-# [[sources]]
-# id = "local_sqlite"
-# dsn = "sqlite:///path/to/database.db"
-
-# In-memory SQLite (great for testing)
-# [[sources]]
-# id = "memory_sqlite"
-# dsn = "sqlite:///:memory:"
 
 # ============================================================================
 # TOOL CONFIGURATION (Optional)
@@ -301,18 +196,13 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 #   dsn = "..."                # Connection string (or use individual params below)
 #   lazy = true                # Defer connection until first query (default: false)
 #   search_path = "schema1,public"  # PostgreSQL only: comma-separated schemas
-#   aws_iam_auth = true         # Optional: enable AWS RDS IAM auth (postgres/mysql/mariadb)
+#   aws_iam_auth = true         # Optional: enable AWS RDS IAM auth (PostgreSQL)
 #   aws_region = "eu-west-1"    # Required when aws_iam_auth = true
 #
-# DSN Formats:
-#   PostgreSQL:  postgres://user:pass@host:5432/database?sslmode=require
-#   MySQL:       mysql://user:pass@host:3306/database
-#   MariaDB:     mariadb://user:pass@host:3306/database
-#   SQL Server:  sqlserver://user:pass@host:1433/database
-#   SQLite:      sqlite:///path/to/file.db  or  sqlite:///:memory:
+# DSN format:
+#   postgres://user:pass@host:5432/database?sslmode=require
 #
-# Default Ports:
-#   PostgreSQL: 5432 | MySQL/MariaDB: 3306 | SQL Server: 1433
+# Default port: 5432
 #
 # SSH Tunnel Options:
 #   ssh_host, ssh_port (default: 22), ssh_user
@@ -322,21 +212,12 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 #   ssh_keepalive_interval (seconds between keepalive packets, default: 0 = disabled)
 #   ssh_keepalive_count_max (max missed keepalive responses, default: 3)
 #
-# SSL Mode (for network databases, not SQLite):
+# SSL mode:
 #   sslmode = "disable"   # No SSL
 #   sslmode = "require"   # SSL without certificate verification
-#
-# SQL Server Authentication:
-#   authentication = "ntlm"                              # Windows/NTLM auth (requires domain)
-#   authentication = "azure-active-directory-access-token"  # Azure AD auth
-#   domain = "MYDOMAIN"                                  # Required for NTLM
 #
 # Tool Options:
 #   readonly = true    # Restrict to SELECT, SHOW, DESCRIBE, EXPLAIN (works for execute_sql and custom tools)
 #   max_rows = 1000    # Limit result set size (works for execute_sql and custom tools)
 #
-# Parameter Placeholders by Database:
-#   PostgreSQL:     $1, $2, $3
-#   MySQL/MariaDB:  ?, ?, ?
-#   SQL Server:     @p1, @p2, @p3
-#   SQLite:         ?, ?, ?
+# Parameter placeholders (custom tools): $1, $2, $3, ...

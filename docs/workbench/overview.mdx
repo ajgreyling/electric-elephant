@@ -18,8 +18,8 @@ npx electric-elephant --transport http --port 8080 --dsn "postgres://..."
 Then open `http://localhost:8080` in your browser.
 
 <Tip>
-Try demo mode to explore the Workbench without setting up a database:
+Start the server with a PostgreSQL DSN to use the Workbench:
 ```bash
-npx electric-elephant --transport http --port 8080 --demo
+npx electric-elephant --transport http --port 8080 --dsn "postgres://user:password@localhost:5432/dbname"
 ```
 </Tip>

@@ -1,5 +1,3 @@
-import type { ConnectorType } from "../connectors/interface.js";
-
 const TokenType = { Plain: 0, Comment: 1, QuotedBlock: 2 } as const;
 
 interface SQLToken {
@@ -17,28 +15,6 @@ function scanSingleLineComment(sql: string, i: number): SQLToken | null {
   let j = i;
   while (j < sql.length && sql[j] !== "\n") { j++; }
   return { type: TokenType.Comment, end: j };
-}
-
-function scanMultiLineComment(sql: string, i: number): SQLToken | null {
-  if (sql[i] !== "/" || sql[i + 1] !== "*") { return null; }
-  let j = i + 2;
-  while (j < sql.length && !(sql[j] === "*" && sql[j + 1] === "/")) { j++; }
-  if (j < sql.length) { j += 2; }
-  return { type: TokenType.Comment, end: j };
-}
-
-/**
- * MySQL/MariaDB-specific multi-line comment scanner that preserves conditional comments.
- * MySQL conditional comments (`/*!nnnnn ... *\/`) and MariaDB-specific comments
- * (`/*M! ... *\/`) are executable. Stripping them would let malicious SQL bypass
- * read-only checks, so we return null to let them pass through as plain text.
- */
-function scanMultiLineCommentMySQL(sql: string, i: number): SQLToken | null {
-  if (sql[i] !== "/" || sql[i + 1] !== "*") { return null; }
-  const next = sql[i + 2];
-  const nextNext = sql[i + 3];
-  if (next === "!" || (next === "M" && nextNext === "!")) { return null; }
-  return scanMultiLineComment(sql, i);
 }
 
 function scanNestedMultiLineComment(sql: string, i: number): SQLToken | null {
@@ -80,7 +56,6 @@ const dollarQuoteOpenRegex = /^\$([a-zA-Z_]\w*)?\$/;
 
 function scanDollarQuotedBlock(sql: string, i: number): SQLToken | null {
   if (sql[i] !== "$") { return null; }
-  // $N where N is a digit is a positional parameter, not a dollar-quote
   const next = sql[i + 1];
   if (next >= "0" && next <= "9") { return null; }
   const remaining = sql.substring(i);
@@ -93,36 +68,6 @@ function scanDollarQuotedBlock(sql: string, i: number): SQLToken | null {
   return { type: TokenType.QuotedBlock, end };
 }
 
-function scanBacktickQuotedIdentifier(sql: string, i: number): SQLToken | null {
-  if (sql[i] !== "`") { return null; }
-  let j = i + 1;
-  while (j < sql.length) {
-    if (sql[j] === "`" && sql[j + 1] === "`") { j += 2; }
-    else if (sql[j] === "`") { j++; break; }
-    else { j++; }
-  }
-  return { type: TokenType.QuotedBlock, end: j };
-}
-
-function scanBracketQuotedIdentifier(sql: string, i: number): SQLToken | null {
-  if (sql[i] !== "[") { return null; }
-  let j = i + 1;
-  while (j < sql.length) {
-    if (sql[j] === "]" && sql[j + 1] === "]") { j += 2; }
-    else if (sql[j] === "]") { j++; break; }
-    else { j++; }
-  }
-  return { type: TokenType.QuotedBlock, end: j };
-}
-
-function scanTokenAnsi(sql: string, i: number): SQLToken {
-  return scanSingleLineComment(sql, i)
-    ?? scanMultiLineComment(sql, i)
-    ?? scanSingleQuotedString(sql, i)
-    ?? scanDoubleQuotedString(sql, i)
-    ?? plainToken(i);
-}
-
 function scanTokenPostgres(sql: string, i: number): SQLToken {
   return scanSingleLineComment(sql, i)
     ?? scanNestedMultiLineComment(sql, i)
@@ -132,60 +77,16 @@ function scanTokenPostgres(sql: string, i: number): SQLToken {
     ?? plainToken(i);
 }
 
-function scanTokenMySQL(sql: string, i: number): SQLToken {
-  return scanSingleLineComment(sql, i)
-    ?? scanMultiLineCommentMySQL(sql, i)
-    ?? scanSingleQuotedString(sql, i)
-    ?? scanDoubleQuotedString(sql, i)
-    ?? scanBacktickQuotedIdentifier(sql, i)
-    ?? plainToken(i);
-}
-
-function scanTokenSQLite(sql: string, i: number): SQLToken {
-  return scanSingleLineComment(sql, i)
-    ?? scanMultiLineComment(sql, i)
-    ?? scanSingleQuotedString(sql, i)
-    ?? scanDoubleQuotedString(sql, i)
-    ?? scanBacktickQuotedIdentifier(sql, i)
-    ?? scanBracketQuotedIdentifier(sql, i)
-    ?? plainToken(i);
-}
-
-function scanTokenSQLServer(sql: string, i: number): SQLToken {
-  return scanSingleLineComment(sql, i)
-    ?? scanMultiLineComment(sql, i)
-    ?? scanSingleQuotedString(sql, i)
-    ?? scanDoubleQuotedString(sql, i)
-    ?? scanBracketQuotedIdentifier(sql, i)
-    ?? plainToken(i);
-}
-
-type TokenScanner = (sql: string, i: number) => SQLToken;
-
-const dialectScanners: Record<ConnectorType, TokenScanner> = {
-  postgres: scanTokenPostgres,
-  mysql: scanTokenMySQL,
-  mariadb: scanTokenMySQL,
-  sqlite: scanTokenSQLite,
-  sqlserver: scanTokenSQLServer,
-};
-
-function getScanner(dialect?: ConnectorType): TokenScanner {
-  return dialect ? (dialectScanners[dialect] ?? scanTokenAnsi) : scanTokenAnsi;
-}
-
 /**
- * Replace comments, string literals, and dialect-specific quoted blocks with a single space each.
- * When no dialect is specified, only ANSI SQL syntax is recognized.
+ * Replace comments, string literals, and PostgreSQL dollar-quoted blocks with a single space each.
  */
-export function stripCommentsAndStrings(sql: string, dialect?: ConnectorType): string {
-  const scanToken = getScanner(dialect);
+export function stripCommentsAndStrings(sql: string): string {
   const parts: string[] = [];
   let plainStart = -1;
   let i = 0;
 
   while (i < sql.length) {
-    const token = scanToken(sql, i);
+    const token = scanTokenPostgres(sql, i);
 
     if (token.type === TokenType.Plain) {
       if (plainStart === -1) { plainStart = i; }
@@ -208,11 +109,9 @@ export function stripCommentsAndStrings(sql: string, dialect?: ConnectorType): s
 }
 
 /**
- * Split SQL into individual statements, handling semicolons inside quoted contexts.
- * When no dialect is specified, only ANSI SQL syntax is recognized.
+ * Split SQL into individual statements, handling semicolons inside quoted contexts (PostgreSQL rules).
  */
-export function splitSQLStatements(sql: string, dialect?: ConnectorType): string[] {
-  const scanToken = getScanner(dialect);
+export function splitSQLStatements(sql: string): string[] {
   const statements: string[] = [];
   let stmtStart = 0;
   let i = 0;
@@ -226,7 +125,7 @@ export function splitSQLStatements(sql: string, dialect?: ConnectorType): string
       continue;
     }
 
-    const token = scanToken(sql, i);
+    const token = scanTokenPostgres(sql, i);
     i = token.end;
   }
 

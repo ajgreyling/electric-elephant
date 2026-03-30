@@ -21,7 +21,7 @@ If no `[[tools]]` entries are defined for a source, both `execute_sql` and `sear
 ```toml
 [[sources]]
 id = "dev"
-dsn = "sqlite:///dev.db"
+dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # No [[tools]] entries = both execute_sql and search_objects enabled
 ```
 
@@ -145,10 +145,10 @@ id = "prod-pg"
 dsn = "postgres://..."
 
 [[sources]]
-id = "staging.mysql"
-dsn = "mysql://..."
+id = "staging_pg"
+dsn = "postgres://..."
 ```
-Tool names: `execute_sql_prod_pg` and `execute_sql_staging_mysql`
+Tool names: `execute_sql_prod_pg` and `execute_sql_staging_pg`
 
 <Note>
 Special characters in source IDs (hyphens, dots, etc.) are converted to underscores in tool names. For example, `prod-pg` becomes `execute_sql_prod_pg`.

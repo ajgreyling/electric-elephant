@@ -12,39 +12,32 @@ title: "Introduction"
   src="/images/logo/full-dark.svg"
 />
 
-Electric Elephant is a zero-dependency, token efficient MCP server implementing the Model Context Protocol server interface. This lightweight gateway allows MCP-compatible clients to connect to and explore different databases.
+Electric Elephant is a zero-dependency, token efficient MCP server implementing the Model Context Protocol server interface. This lightweight gateway lets MCP-compatible clients connect to **PostgreSQL** — one engine, consistent behavior.
 
 ```
  +------------------+    +--------------+    +------------------+
  |                  |    |              |    |                  |
- |                  |    |              |    |                  |
- |  Claude Desktop  +--->+              +--->+    PostgreSQL    |
- |                  |    |              |    |                  |
- |  Claude Code     +--->+              +--->+    SQL Server    |
- |                  |    |              |    |                  |
- |  Cursor          +--->+ Elephant MCP +--->+    SQLite        |
- |                  |    |              |    |                  |
- |  VS Code         +--->+              +--->+    MySQL         |
- |                  |    |              |    |                  |
- |  Other Clients   +--->+              +--->+    MariaDB       |
- |                  |    |              |    |                  |
- |                  |    |              |    |                  |
+ |  Claude Desktop  +--->+              +--->+                  |
+ |  Claude Code     +--->+ Elephant MCP +--->+   PostgreSQL     |
+ |  Cursor          +--->+              +--->+   (one or more   |
+ |  VS Code         +--->+              +--->+    sources)      |
+ |  Other Clients   +--->+              +--->+                  |
  +------------------+    +--------------+    +------------------+
-     MCP Clients           MCP Server             Databases
+     MCP Clients           MCP Server             Database
 ```
 
-## Supported Databases
+## Supported database
 
-PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite.
+PostgreSQL only (`postgres://` / `postgresql://`, or TOML / `DB_*` parameters).
 
 ## Why Electric Elephant?
 
-Electric Elephant brings powerful database capabilities to AI coding assistants:
+Electric Elephant brings database access to AI coding assistants with guardrails suited to agents:
 
-- **Local Development First**: Zero dependency, token efficient with just two MCP tools to maximize context window
-- **Multi-Database**: PostgreSQL, MySQL, MariaDB, SQL Server, and SQLite through a single interface
-- **Multi-Connection**: Connect to multiple databases simultaneously with TOML configuration
-- **Guardrails**: Read-only mode, row limiting, query timeout, and optional PII/clinical column checks on `execute_sql` (wildcards and heuristic column matches blocked unless explicitly opted in)
+- **Local development first**: Token-efficient tools and a small surface area
+- **PostgreSQL-native**: One dialect, one connector — less ambiguity for models and operators
+- **Multi-connection**: Several Postgres instances via `dbhub.toml` (`source_id` on tools)
+- **Guardrails**: Read-only mode, row limiting, **5-minute default** query timeout (override with `query_timeout` in TOML), and optional PII/clinical column checks on `execute_sql` (wildcards and heuristic column matches blocked unless explicitly opted in)
 - **Secure Access**: SSH tunneling and SSL/TLS encryption
 
 ## Key Features
@@ -89,7 +82,7 @@ flowchart TB
     end
 
     %% Databases
-    Databases["PostgreSQL, MySQL, SQL Server, MariaDB, SQLite"]
+    Databases["PostgreSQL (multiple sources)"]
 
     %% Connections
     User --> WB

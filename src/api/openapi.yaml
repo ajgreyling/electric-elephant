@@ -107,19 +107,19 @@ components:
           example: postgres
         host:
           type: string
-          description: Database host (not present for SQLite)
+          description: Database server hostname
           example: localhost
         port:
           type: integer
-          description: Database port (not present for SQLite)
+          description: Database server TCP port
           example: 5432
         database:
           type: string
-          description: Database name or file path (for SQLite)
+          description: Database name
           example: production
         user:
           type: string
-          description: Database username (not present for SQLite)
+          description: Database username
           example: dbuser
         ssh_tunnel:
           $ref: '#/components/schemas/SSHTunnel'

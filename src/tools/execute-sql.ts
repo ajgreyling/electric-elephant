@@ -2,7 +2,6 @@ import { z } from "zod";
 import { ConnectorManager } from "../connectors/manager.js";
 import { createToolSuccessResponse, createToolErrorResponse } from "../utils/response-formatter.js";
 import { isReadOnlySQL, allowedKeywords } from "../utils/allowed-keywords.js";
-import { ConnectorType } from "../connectors/interface.js";
 import { getToolRegistry } from "./registry.js";
 import { BUILTIN_TOOL_EXECUTE_SQL } from "./builtin-tools.js";
 import {
@@ -23,9 +22,9 @@ export const executeSqlSchema = {
  * @param connectorType The database type to check against
  * @returns True if all statements are read-only
  */
-function areAllStatementsReadOnly(sql: string, connectorType: ConnectorType): boolean {
-  const statements = splitSQLStatements(sql, connectorType);
-  return statements.every(statement => isReadOnlySQL(statement, connectorType));
+function areAllStatementsReadOnly(sql: string): boolean {
+  const statements = splitSQLStatements(sql);
+  return statements.every((statement) => isReadOnlySQL(statement));
 }
 
 /**
@@ -56,14 +55,14 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
 
       // Check if SQL is allowed based on readonly mode (per-tool)
       const isReadonly = toolConfig?.readonly === true;
-      if (isReadonly && !areAllStatementsReadOnly(sql, connector.id)) {
-        errorMessage = `Read-only mode is enabled. Only the following SQL operations are allowed: ${allowedKeywords[connector.id]?.join(", ") || "none"}`;
+      if (isReadonly && !areAllStatementsReadOnly(sql)) {
+        errorMessage = `Read-only mode is enabled. Only the following SQL operations are allowed: ${allowedKeywords.join(", ") || "none"}`;
         success = false;
         return createToolErrorResponse(errorMessage, "READONLY_VIOLATION");
       }
 
       const allowPiiAccess = toolConfig?.allow_access_to_pii_data === true;
-      const piiGuard = validateSqlPiiAccessGuard(sql, connector.id, allowPiiAccess);
+      const piiGuard = validateSqlPiiAccessGuard(sql, allowPiiAccess);
       if (!piiGuard.ok) {
         errorMessage = piiGuard.message;
         success = false;

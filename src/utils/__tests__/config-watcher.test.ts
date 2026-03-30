@@ -99,7 +99,7 @@ describe("startConfigWatcher", () => {
   it("should debounce rapid file changes", async () => {
     vi.mocked(resolveTomlConfigPath).mockReturnValue("/path/to/dbhub.toml");
     vi.mocked(loadTomlConfig).mockReturnValue({
-      sources: [{ id: "db", type: "sqlite" as const, dsn: "sqlite:///:memory:" }],
+      sources: [{ id: "db", type: "postgres" as const, dsn: "postgres://u:p@localhost:5432/db" }],
       tools: [],
       source: "dbhub.toml",
     });
@@ -149,7 +149,7 @@ describe("startConfigWatcher", () => {
     };
     vi.mocked(loadTomlConfig).mockReturnValue(newConfig);
 
-    const oldSources = [{ id: "old_db", type: "sqlite" as const, dsn: "sqlite:///:memory:" }];
+    const oldSources = [{ id: "old_db", type: "postgres" as const, dsn: "postgres://u:p@localhost:5432/old" }];
     const oldTools = [{ name: "execute_sql" as const, source: "old_db" }];
     const mockManager = createMockManager({
       connectWithSources: vi.fn()

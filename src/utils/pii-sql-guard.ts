@@ -1,4 +1,3 @@
-import type { ConnectorType } from "../connectors/interface.js";
 import {
   findPiiMatchesInProjectionText,
   projectionItemIsWildcard,
@@ -244,20 +243,19 @@ function buildRemediationMessage(
 }
 
 /**
- * When allowAccess is false, inspect SQL (comments/strings stripped per dialect) for wildcard projections
+ * When allowAccess is false, inspect SQL (comments/strings stripped for PostgreSQL) for wildcard projections
  * and heuristic PII/clinical identifiers in SELECT/RETURNING lists.
  */
 export function validateSqlPiiAccessGuard(
   sql: string,
-  dialect: ConnectorType,
   allowAccess: boolean
 ): { ok: true } | PiiGuardFailure {
   if (allowAccess) {
     return { ok: true };
   }
-  const statements = splitSQLStatements(sql, dialect);
+  const statements = splitSQLStatements(sql);
   for (const stmt of statements) {
-    const stripped = stripCommentsAndStrings(stmt, dialect);
+    const stripped = stripCommentsAndStrings(stmt);
     const { wildcards, pii } = scanStatement(stripped);
     if (wildcards.length > 0) {
       return {

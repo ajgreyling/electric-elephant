@@ -145,15 +145,6 @@ export function loadEnvFiles(): string | null {
 }
 
 /**
- * Check if demo mode is enabled from command line args
- * Returns true if --demo flag is provided
- */
-export function isDemoMode(): boolean {
-  const args = parseCommandLineArgs();
-  return args.demo === "true";
-}
-
-/**
  * Whether destructive SQL (INSERT/UPDATE/DELETE/MERGE etc.) is allowed.
  * When false (default), the server runs in read-only mode; only SELECT and other read-only SQL is allowed.
  * Pass --allow-destructive-sql=true to allow write/delete/update/merge commands.
@@ -242,13 +233,11 @@ export function buildDSNFromEnvParams(): { dsn: string; source: string } | null 
  * Resolve DSN from command line args, environment variables, or .env files
  * Returns the DSN and its source, or null if not found
  */
-export function resolveDSN(): { dsn: string; source: string; isDemo?: boolean } | null {
-  // Get command line arguments
+export function resolveDSN(): { dsn: string; source: string } | null {
   const args = parseCommandLineArgs();
 
-  // Demo mode was removed in PostgreSQL-only mode.
-  if (isDemoMode()) {
-    throw new Error("--demo is not supported in PostgreSQL-only mode.");
+  if (args.demo !== undefined) {
+    throw new Error("--demo is not supported (PostgreSQL-only; use a real DSN or dbhub.toml).");
   }
 
   // 1. Check command line arguments
@@ -546,26 +535,25 @@ export async function resolveSourceConfigs(): Promise<{
   source: string;
   defaultReadonly?: boolean;
 } | null> {
-  // 1. Try loading from TOML configuration file (skip if --demo flag is set)
-  if (!isDemoMode()) {
-    const tomlConfig = loadTomlConfig();
-    if (tomlConfig) {
-      // Validate that --id flag is not used with TOML config
-      const idData = resolveId();
-      if (idData) {
-        throw new Error(
-          "The --id flag cannot be used with TOML configuration. " +
-          "TOML config defines source IDs directly. " +
-          "Either remove the --id flag or use command-line DSN configuration instead."
-        );
-      }
-      // Note: --readonly flag is deprecated but no longer blocks TOML usage
-      // The warning is shown in isReadOnlyMode() function
-      return tomlConfig;
-    }
+  const args = parseCommandLineArgs();
+  if (args.demo !== undefined) {
+    throw new Error("--demo is not supported (PostgreSQL-only; use a real DSN or dbhub.toml).");
   }
 
-  // 2. Fallback to single DSN configuration (including demo mode)
+  const tomlConfig = loadTomlConfig();
+  if (tomlConfig) {
+    const idData = resolveId();
+    if (idData) {
+      throw new Error(
+        "The --id flag cannot be used with TOML configuration. " +
+          "TOML config defines source IDs directly. " +
+          "Either remove the --id flag or use command-line DSN configuration instead."
+      );
+    }
+    return tomlConfig;
+  }
+
+  // Fallback to single DSN / env configuration
   const dsnResult = resolveDSN();
   if (dsnResult) {
     // Hydrate .env so ALLOW_ACCESS_TO_PII_DATA applies when DSN was resolved from CLI only
@@ -656,7 +644,7 @@ export async function resolveSourceConfigs(): Promise<{
     return {
       sources: [source],
       tools,
-      source: dsnResult.isDemo ? "demo mode" : dsnResult.source,
+      source: dsnResult.source,
       ...(readOnly && { defaultReadonly: true }),
     };
   }

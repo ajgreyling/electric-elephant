@@ -63,7 +63,7 @@ export class SafeURL implements ISafeURL {
         this.protocol = urlString.substring(0, protocolSeparator + 1); // includes the colon
         urlString = urlString.substring(protocolSeparator + 3); // rest after ://
       } else {
-        throw new Error('Invalid URL format: missing protocol (e.g., "mysql://")');
+        throw new Error('Invalid URL format: missing protocol (e.g., "postgres://")');
       }
 
       // Extract query params if any

@@ -1,11 +1,10 @@
 # Sources with execution options (readonly, max_rows) configured per-tool
-# Used for testing query execution constraints
+# Used as a documentation fixture. Integration tests build equivalent config in memory with a live Postgres DSN.
 
 [[sources]]
 id = "readonly_limited"
 description = "Read-only database for safe queries"
-type = "sqlite"
-database = ":memory:"
+dsn = "postgres://user:pass@localhost:5432/readonly_limited"
 
 [[tools]]
 name = "execute_sql"
@@ -15,8 +14,7 @@ max_rows = 100
 
 [[sources]]
 id = "writable_limited"
-type = "sqlite"
-database = ":memory:"
+dsn = "postgres://user:pass@localhost:5432/writable_limited"
 
 [[tools]]
 name = "execute_sql"
@@ -26,5 +24,4 @@ max_rows = 500
 
 [[sources]]
 id = "writable_unlimited"
-type = "sqlite"
-database = ":memory:"
+dsn = "postgres://user:pass@localhost:5432/writable_unlimited"

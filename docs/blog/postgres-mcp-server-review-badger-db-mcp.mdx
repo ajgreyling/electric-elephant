@@ -1,11 +1,11 @@
 ---
 title: "Postgres MCP Server Review - Electric Elephant Design Explained"
-description: "A maintainer's deep-dive into Electric Elephant—a zero-dependency, token efficient MCP server for PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite with consistent guardrails."
+description: "A maintainer's deep-dive into Electric Elephant—a zero-dependency, token efficient MCP server for PostgreSQL with consistent guardrails."
 ---
 
 _Last updated: Dec 28, 2025_
 
-This is the third in a series reviewing Postgres MCP servers. Here we—the Electric Elephant maintainers—explain the design behind [Electric Elephant](https://github.com/ajgreyling/electric-elephant), a zero-dependency, token efficient MCP server that connects AI assistants to PostgreSQL, MySQL, MariaDB, SQL Server, and SQLite. We'll cover our design decisions, trade-offs, and where Electric Elephant falls short compared to alternatives.
+This is the third in a series reviewing Postgres MCP servers. Here we—the Electric Elephant maintainers—explain the design behind [Electric Elephant](https://github.com/ajgreyling/electric-elephant), a zero-dependency, token efficient MCP server that connects AI assistants to **PostgreSQL** only. We'll cover our design decisions, trade-offs, and where Electric Elephant falls short compared to alternatives.
 
 - **GitHub Stars**
 
@@ -40,13 +40,7 @@ npx electric-elephant --dsn "postgres://user:password@localhost:5432/dbname"
 One command, no configuration file required. Unlike MCP Toolbox which requires a YAML config file upfront, Electric Elephant works directly with a DSN. 
 Configuration files are optional—use them when you need advanced settings.
 
-For those who want to try Electric Elephant without setting up a database first:
-
-```bash
-npx electric-elephant --demo
-```
-
-This starts Electric Elephant with a bundled SQLite employee database—useful for exploring the MCP integration before connecting to your own databases.
+Use any local or hosted Postgres (Docker, cloud, or tunneled) and pass a `postgres://` DSN or configure `dbhub.toml`.
 
 ## Tools
 
@@ -148,7 +142,7 @@ Electric Elephant supports advanced settings via TOML configuration:
 
 - **Row limiting**: Prevent accidental large data retrieval with `max_rows`. If your query already has a `LIMIT` clause, Electric Elephant uses the smaller value.
 
-- **Connection and query timeouts**: Prevent runaway queries and connection hangs with `connection_timeout` and `query_timeout` settings.
+- **Connection and query timeouts**: Prevent runaway queries and connection hangs with `connection_timeout` and `query_timeout` settings. If `query_timeout` is omitted, a **5-minute** client-side default applies for supported engines (not SQLite).
 
 - **SSH tunneling**: Connect through bastion hosts for databases not exposed to the public internet. Supports ProxyJump for multi-hop connections and automatic `~/.ssh/config` parsing.
 
@@ -168,7 +162,7 @@ Electric Elephant includes a [built-in web interface](/workbench/overview) with 
 
 ## Summary
 
-**Electric Elephant** is a zero-dependency, token efficient MCP server for relational databases with guardrails.
+**Electric Elephant** is a zero-dependency, token efficient MCP server for PostgreSQL with guardrails.
 
 ### The Good
 
@@ -176,7 +170,7 @@ Electric Elephant includes a [built-in web interface](/workbench/overview) with 
 
 - **Vendor neutral**: Unlike Supabase MCP (Supabase-only) or MCP Toolbox (tilted toward Google Cloud), Electric Elephant works with any deployment—cloud, on-premise, or local.
 
-- **Multi-database with consistent guardrails**: Not limited to a single Postgres database, but we don't expand beyond the database boundary either. This focus lets us provide consistent guardrails across all supported databases: read-only mode, row limits, connection/query timeouts, and (Electric Elephant) fail-closed PII/clinical heuristics on `execute_sql` unless `allow_access_to_pii_data` is explicitly enabled.
+- **Multi-instance Postgres with consistent guardrails**: Connect several PostgreSQL sources via TOML with per-tool settings. Guardrails include read-only mode, row limits, connection/query timeouts, and (Electric Elephant) fail-closed PII/clinical heuristics on `execute_sql` unless `allow_access_to_pii_data` is explicitly enabled.
 
 ### The Bad
 
@@ -190,13 +184,13 @@ Electric Elephant includes a [built-in web interface](/workbench/overview) with 
 quadrantChart
     title Postgres MCP Server Comparison
     x-axis Vendor-Locked --> Vendor-Neutral
-    y-axis Postgres-Specific --> Data Source Agnostic
-    Supabase MCP Server: [0.1, 0.1]
-    MCP Toolbox: [0.3, 0.9]
-    Electric Elephant: [0.85, 0.6]
+    y-axis Postgres-only --> Many database engines
+    Supabase MCP Server: [0.1, 0.15]
+    MCP Toolbox: [0.3, 0.92]
+    Electric Elephant: [0.85, 0.12]
 ```
 
-**If you're an AI-assisted developer working with local databases**, Electric Elephant is built for you. It's optimized for the local development workflow—zero setup friction, minimal token overhead, and no authentication complexity. Works with PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite out of the box.
+**If you're an AI-assisted developer using PostgreSQL**, Electric Elephant is built for you. It's optimized for the local development workflow—minimal token overhead and no bundled SaaS authentication.
 
 **If you need a vendor-neutral solution**, Electric Elephant is the only option that isn't tied to a specific cloud platform. Unlike Supabase MCP (Supabase-only) or MCP Toolbox (tilted toward Google Cloud), Electric Elephant works anywhere your database runs.
 
@@ -209,5 +203,5 @@ quadrantChart
 
 1. [MCP Toolbox for Databases](/blog/postgres-mcp-server-review-mcp-toolbox) - Google's multi-database MCP server with 40+ data source support
 2. [Supabase MCP Server](/blog/postgres-mcp-server-review-supabase-mcp) - Hosted MCP server for Supabase projects
-3. **Electric Elephant** (this article) - Zero-dependency, token efficient MCP server for PostgreSQL, MySQL, SQL Server, MariaDB, and SQLite
+3. **Electric Elephant** (this article) - Zero-dependency, token efficient MCP server for PostgreSQL
 4. [The State of Postgres MCP Servers](/blog/state-of-postgres-mcp-servers-2025) - Landscape overview and future outlook

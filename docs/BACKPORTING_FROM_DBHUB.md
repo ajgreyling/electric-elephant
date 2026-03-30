@@ -90,7 +90,7 @@ For every backport, add:
 
 ### Detailed commit ledger
 
-The following upstream commits have been backported into `electric-elephant` as **manual ports** (logic-equivalent, not hash-preserving cherry-picks). Some entries mention MySQL/MariaDB/SQLite because that wording comes from upstream commit messages; treat those as historical context, not current product scope.
+The following upstream commits have been backported into `electric-elephant` as **manual ports** (logic-equivalent, not hash-preserving cherry-picks). Line items paraphrase upstream intent; Electric Elephant ships a PostgreSQL-only connector set.
 
 #### Read-only/security series (PR #275 + related fix)
 
@@ -100,19 +100,19 @@ The following upstream commits have been backported into `electric-elephant` as 
 - `e488858` - Fix: handle `WITH ... SELECT INTO`, `EXPLAIN ANALYZE`, `REPLACE()` in CTEs
 - `88f9e42` - Fix: validate `EXPLAIN ANALYZE` inner statement with full read-only logic
 - `20aef0e` - Fix: handle `EXPLAIN ANALYZE VERBOSE` in read-only checks
-- `439fca7` - Fix: dialect-aware `REPLACE` detection (MySQL/MariaDB only)
+- `439fca7` - Fix: refine dialect-specific `REPLACE` / mutating-keyword handling
 - `7f61160` - Fix: reject standalone `ANALYZE`; allow `EXPLAIN (ANALYZE false|off|0)`
-- `b37af1b` - Fix: narrow MySQL `REPLACE` detection to `REPLACE ... INTO`
-- `7719d4e` - Fix: add SQLite `REPLACE INTO` detection in read-only mode
+- `b37af1b` - Fix: narrow `REPLACE ... INTO` handling in read-only checks
+- `7719d4e` - Fix: `REPLACE INTO` detection in read-only mode
 - `f3b32da` - Refactor: simplify mutating pattern dispatch/processing
 - `4236ba4` - Merge commit for PR #275 (source reference)
-- `409394b` - Fix: prevent readonly bypass via MySQL/MariaDB executable comments (#284)
+- `409394b` - Fix: prevent readonly bypass via executable conditional comments (#284)
 
 #### Runtime/connector/build reliability series
 
 - `bad73ad` - Fix: exit stdio transport process when parent closes on Windows
 - `c772cb6` - Feat: support base64-encoded SSH private keys in SSH config
-- `e1a4736` - Fix: preserve BIGINT precision for MySQL and SQLite connectors
+- `e1a4736` - Fix: preserve BIGINT precision in query results
 - `1eefec4` - Feat: support optional database driver packages (#286)
 - `b8d5e52` - Fix: externalize DB drivers in tsup to avoid CJS-in-ESM runtime failures (#291)
 - `aab1312` - Add post-build smoke test for connector chunk imports
@@ -124,7 +124,7 @@ Status: **manual port (equivalent logic), validated**
 Upstream sources:
 
 - `4236ba4` - Fix: detect mutating keywords inside CTEs in read-only mode (#275)
-- `409394b` - Fix: prevent readonly bypass via MySQL conditional comments (#284)
+- `409394b` - Fix: prevent readonly bypass via executable conditional comments (#284)
 
 Local files changed:
 
@@ -142,7 +142,7 @@ Validation run:
 
 Notes:
 
-- This backport closes read-only bypass vectors involving `WITH` CTE mutation, `SELECT ... INTO`, `EXPLAIN ANALYZE`, and executable MySQL/MariaDB comments.
+- This backport closes read-only bypass vectors involving `WITH` CTE mutation, `SELECT ... INTO`, `EXPLAIN ANALYZE`, and executable conditional comments.
 
 ## 2026-03-30: Runtime and packaging reliability batch
 
@@ -152,7 +152,7 @@ Upstream sources:
 
 - `bad73ad` - fix: exit stdio transport process when parent closes on Windows
 - `c772cb6` - feat: support base64-encoded SSH private keys in SSH_KEY
-- `e1a4736` - fix: preserve BIGINT precision for MySQL and SQLite connectors
+- `e1a4736` - fix: preserve BIGINT precision in query results
 - `1eefec4` - feat: support optional database driver packages (#286)
 - `b8d5e52` - Fix: externalize database drivers in tsup to prevent bundling CJS into ESM (#291)
 - `aab1312` - Add post-build smoke test to catch CJS-in-ESM bundling errors
@@ -162,8 +162,7 @@ Local files changed:
 - `src/server.ts`
 - `src/utils/ssh-tunnel.ts`
 - `src/utils/__tests__/ssh-tunnel.test.ts`
-- `src/connectors/mysql/index.ts`
-- `src/connectors/sqlite/index.ts`
+- `src/connectors/postgres/index.ts`
 - `src/utils/response-formatter.ts`
 - `src/utils/__tests__/bigint-handling.test.ts`
 - `src/index.ts`

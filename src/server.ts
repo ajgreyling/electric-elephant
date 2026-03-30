@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 
 import { ConnectorManager } from "./connectors/manager.js";
 import { ConnectorRegistry } from "./connectors/interface.js";
-import { resolveTransport, resolvePort, resolveSourceConfigs, isDemoMode } from "./config/env.js";
+import { resolveTransport, resolvePort, resolveSourceConfigs } from "./config/env.js";
 import { registerTools } from "./tools/index.js";
 import { listSources, getSource } from "./api/sources.js";
 import { listRequests } from "./api/requests.js";
@@ -87,7 +87,7 @@ See documentation for more details on configuring database connections.
 
     console.error(`Configuration source: ${sourceConfigsData.source}`);
 
-    // Connect to database(s) - works uniformly for all modes (demo, single DSN, multi-source TOML)
+    // Connect to database(s) — single DSN or multi-source TOML
     await connectorManager.connectWithSources(sources);
 
     // Initialize tool registry (manages both built-in and custom tools)
@@ -133,12 +133,6 @@ See documentation for more details on configuring database connections.
     // Collect active modes
     const activeModes: string[] = [];
     const modeDescriptions: string[] = [];
-    const isDemo = isDemoMode();
-
-    if (isDemo) {
-      activeModes.push("DEMO");
-      modeDescriptions.push("using sample employee database");
-    }
 
     if (sourceConfigsData.defaultReadonly) {
       activeModes.push("READ-ONLY");
@@ -155,8 +149,7 @@ See documentation for more details on configuring database connections.
     // Print sources and tools table
     const sourceDisplayInfos = buildSourceDisplayInfo(
       sources,
-      (sourceId) => getToolsForSource(sourceId).map((t) => t.readonly ? `🔒 ${t.name}` : t.name),
-      isDemo
+      (sourceId) => getToolsForSource(sourceId).map((t) => t.readonly ? `🔒 ${t.name}` : t.name)
     );
     console.error(generateStartupTable(sourceDisplayInfos));
 

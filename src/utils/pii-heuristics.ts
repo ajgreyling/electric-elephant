@@ -35,6 +35,7 @@ const DIRECT_PHRASES: string[] = [
   "mantoux",
   "quantiferon",
   "gene expert",
+  "gene xpert",
   "genexpert",
   "viral load",
   "cd4",
@@ -54,6 +55,7 @@ const DIRECT_PHRASES: string[] = [
   "platelet",
   "creatinine",
   "hba1c",
+  "hemoglobin a1c",
   "a1c",
   "cbc",
   "cmp",
@@ -125,6 +127,8 @@ const MEDICAL_CONTEXT_TOKENS = new Set([
   "cytology",
   "biopsy",
   "oncology",
+  "chemotherapy",
+  "radiotherapy",
   "radiology",
   "histopath",
   "bacteriology",
@@ -135,11 +139,8 @@ const MEDICAL_CONTEXT_TOKENS = new Set([
   "sputum",
   "csf",
   "pcr",
-  "arb",
   "arv",
   "antiretroviral",
-  "therapy",
-  "chemo",
   "culture",
   "smear",
   "genexpert",
@@ -164,6 +165,8 @@ const WEAK_PAIR_TOKENS = new Set(["result", "status", "note"]);
  */
 export function normalizePiiMatchText(text: string): string {
   return text
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]{2,})([A-Z][a-z]+)/g, "$1 $2")
     .toLowerCase()
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")

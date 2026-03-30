@@ -233,7 +233,7 @@ export class ConnectorManager {
     if (source.query_timeout !== undefined) {
       config.queryTimeoutSeconds = source.query_timeout;
     }
-    // Pass readonly flag for SDK-level enforcement (PostgreSQL, SQLite)
+    // Pass readonly flag for SDK-level enforcement (PostgreSQL)
     if (source.readonly !== undefined) {
       config.readonly = source.readonly;
     }

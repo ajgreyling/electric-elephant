@@ -12,9 +12,6 @@ title: "Installation"
       --transport http \
       --port 8080 \
       --dsn "postgres://user:password@localhost:5432/dbname?sslmode=disable"
-
-    # Or use demo mode for testing
-    npx electric-elephant --transport http --port 8080 --demo
     ```
   </Tab>
 
@@ -25,9 +22,6 @@ title: "Installation"
 
     # Run the server
     electric-elephant --transport http --port 8080 --dsn "postgres://..."
-
-    # Or use demo mode for testing
-    electric-elephant --transport http --port 8080 --demo
     ```
   </Tab>
 </Tabs>
@@ -44,15 +38,6 @@ title: "Installation"
       --transport http \
       --port 8080 \
       --dsn "postgres://user:password@localhost:5432/dbname?sslmode=disable"
-
-    # Or use demo mode for testing
-    docker run --rm --init \
-      --name electric-elephant \
-      --publish 8080:8080 \
-      electric-elephant \
-      --transport http \
-      --port 8080 \
-      --demo
     ```
 
     <Warning>
@@ -272,25 +257,6 @@ Verify Electric Elephant is loaded:
     ```
   </Tab>
 
-  <Tab title="Demo Mode">
-    For testing, you can use the built-in demo database:
-
-    ```json ~/Library/Application Support/Claude/claude_desktop_config.json
-    {
-      "mcpServers": {
-        "electric-elephant": {
-          "command": "npx",
-          "args": [
-            "electric-elephant",
-            "--transport",
-            "stdio",
-            "--demo"
-          ]
-        }
-      }
-    }
-    ```
-  </Tab>
 </Tabs>
 
 **Troubleshooting:**
@@ -535,7 +501,7 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     - **Server type**: select `local` (the default)
     - **Server name**: for example, `electric-elephant`
     - **Command**: `npx electric-elephant`
-    - **Arguments**: transport (e.g., `--transport stdio`) and connection details (either `--dsn` connection string or `--demo` for the demo database)
+    - **Arguments**: transport (e.g., `--transport stdio`) and a PostgreSQL `--dsn` connection string (or use `--config` with `dbhub.toml`)
   </Tab>
 
   <Tab title="Config File">
@@ -559,25 +525,6 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     ```
   </Tab>
 
-  <Tab title="Demo Mode">
-    For testing, use the built-in demo database:
-
-    ```json ~/.copilot/mcp-config.json
-    {
-      "mcpServers": {
-        "electric-elephant": {
-          "command": "npx",
-          "args": [
-            "electric-elephant",
-            "--transport",
-            "stdio",
-            "--demo"
-          ]
-        }
-      }
-    }
-    ```
-  </Tab>
 </Tabs>
 
 **References:**
@@ -590,23 +537,14 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
     ```bash
     # Connect to your database
     codex mcp add electric-elephant -- npx electric-elephant --transport stdio --dsn "postgres://user:password@localhost:5432/dbname"
-
-    # Or use demo mode for testing
-    codex mcp add electric-elephant -- npx electric-elephant --transport stdio --demo
     ```
   </Tab>
 
   <Tab title="TOML">
     ```toml ~/.codex/config.toml
-    # Connect to your database
     [mcp_servers.electric-elephant]
     command = "npx"
     args = ["electric-elephant", "--transport", "stdio", "--dsn", "postgres://user:password@localhost:5432/dbname"]
-
-    # Or use demo mode for testing
-    [mcp_servers.electric-elephant]
-    command = "npx"
-    args = ["electric-elephant", "--transport", "stdio", "--demo"]
     ```
   </Tab>
 
@@ -619,7 +557,7 @@ VS Code has native MCP support through GitHub Copilot. Create `.vscode/mcp.json`
       • electric-elephant
         • Status: enabled
         • Auth: Unsupported
-        • Command: npx -y electric-elephant --demo
+        • Command: npx -y electric-elephant --transport stdio --dsn postgres://...
         • Tools: execute_sql
         • Resources: schemas (db://schemas)
         • Resource templates: tables_in_schema (db://schemas/{schemaName}/tables), table_structure_in_schema (db://schemas/{schemaName}/
@@ -658,20 +596,12 @@ Once connected, Electric Elephant tools are available in:
 - **Agents**: Tools appear alongside built-in tools, use "Add All" to enable all Electric Elephant tools
 - **Workflows**: Tools appear as available node types
 
-**Multi-Database Setup:**
+**Multiple PostgreSQL sources:**
 
-For multiple databases, use a config file:
+Use TOML configuration:
 
 ```bash
 npx electric-elephant --transport http --port 8080 --config /path/to/dbhub.toml
-```
-
-**Demo Mode:**
-
-For testing, use the built-in demo database:
-
-```bash
-npx electric-elephant --transport http --port 8080 --demo
 ```
 
 **Limitations:**
@@ -700,19 +630,6 @@ Electric Elephant can be integrated with [LibreChat](https://www.librechat.ai/) 
         timeout: 60000
     ```
 
-    For demo mode:
-
-    ```yaml librechat.yaml
-    mcpServers:
-      electric-elephant:
-        type: stdio
-        command: npx
-        args:
-          - -y
-          - "electric-elephant"
-          - "--demo"
-        timeout: 60000
-    ```
   </Tab>
 
   <Tab title="Streamable HTTP">

@@ -17,16 +17,16 @@ describe("isDriverNotInstalled", () => {
     );
     (err as NodeJS.ErrnoException).code = "ERR_MODULE_NOT_FOUND";
 
-    expect(isDriverNotInstalled(err, "mysql2")).toBe(false);
+    expect(isDriverNotInstalled(err, "not-the-pg-package")).toBe(false);
   });
 
   it("should return true for driver subpath imports", () => {
     const err = new Error(
-      "Cannot find package 'mysql2/promise' imported from /fake/path"
+      "Cannot find package 'pg/protocol' imported from /fake/path"
     );
     (err as NodeJS.ErrnoException).code = "ERR_MODULE_NOT_FOUND";
 
-    expect(isDriverNotInstalled(err, "mysql2")).toBe(true);
+    expect(isDriverNotInstalled(err, "pg")).toBe(true);
   });
 
   it("should return false when missing module name only contains driver as a substring", () => {
@@ -45,7 +45,7 @@ describe("isDriverNotInstalled", () => {
     (err as NodeJS.ErrnoException).code = "ERR_MODULE_NOT_FOUND";
 
     expect(isDriverNotInstalled(err, "pg")).toBe(false);
-    expect(isDriverNotInstalled(err, "mysql2")).toBe(false);
+    expect(isDriverNotInstalled(err, "not-the-pg-package")).toBe(false);
   });
 
   it("should return false for non-module errors", () => {

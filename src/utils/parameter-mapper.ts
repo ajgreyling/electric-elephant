@@ -12,11 +12,7 @@ import { stripCommentsAndStrings } from "./sql-parser.js";
  */
 export const PARAMETER_STYLES = {
   postgres: "numbered", // $1, $2, $3
-  mysql: "positional", // ?, ?, ?
-  mariadb: "positional", // ?, ?, ?
-  sqlserver: "named", // @p1, @p2, @p3
-  sqlite: "positional", // ?, ?, ?
-} as const;
+} as const satisfies Record<ConnectorType, "numbered" | "positional" | "named">;
 
 /**
  * Detect the parameter style used in a SQL statement.

@@ -15,11 +15,7 @@ export interface ParsedConnectionInfo {
 }
 
 /**
- * Parse connection information from a DSN string
- * Extracts host, port, database, user, and type without exposing password
- *
- * @param dsn - Database connection string
- * @returns Parsed connection info or null if parsing fails
+ * Parse connection information from a PostgreSQL DSN string
  */
 export function parseConnectionInfoFromDSN(dsn: string): ParsedConnectionInfo | null {
   if (!dsn) {
@@ -32,29 +28,6 @@ export function parseConnectionInfoFromDSN(dsn: string): ParsedConnectionInfo | 
       return null;
     }
 
-    // Handle SQLite specially - it only has a database path
-    if (type === 'sqlite') {
-      // SQLite DSN format: sqlite:///path
-      const prefix = 'sqlite:///';
-      if (dsn.length > prefix.length) {
-        const rawPath = dsn.substring(prefix.length);
-        // Add leading '/' for Unix absolute paths only
-        // Don't add '/' for:
-        // - Memory database: starts with ':'
-        // - Relative paths: starts with '.' or '~'
-        // - Windows absolute: second char is ':' (e.g., C:/path)
-        const firstChar = rawPath[0];
-        const isWindowsDrive = rawPath.length > 1 && rawPath[1] === ':';
-        const isSpecialPath = firstChar === ':' || firstChar === '.' || firstChar === '~' || isWindowsDrive;
-        return {
-          type,
-          database: isSpecialPath ? rawPath : '/' + rawPath,
-        };
-      }
-      return { type };
-    }
-
-    // Parse other database DSNs using SafeURL
     const url = new SafeURL(dsn);
 
     const info: ParsedConnectionInfo = { type };
@@ -68,7 +41,6 @@ export function parseConnectionInfoFromDSN(dsn: string): ParsedConnectionInfo | 
     }
 
     if (url.pathname && url.pathname.length > 1) {
-      // Remove leading '/' from pathname
       info.database = url.pathname.substring(1);
     }
 
@@ -78,15 +50,12 @@ export function parseConnectionInfoFromDSN(dsn: string): ParsedConnectionInfo | 
 
     return info;
   } catch {
-    // If parsing fails, return null
     return null;
   }
 }
 
 /**
  * Obfuscates the password in a DSN string for logging purposes
- * @param dsn The original DSN string
- * @returns DSN string with password replaced by asterisks
  */
 export function obfuscateDSNPassword(dsn: string): string {
   if (!dsn) {
@@ -94,22 +63,12 @@ export function obfuscateDSNPassword(dsn: string): string {
   }
 
   try {
-    const type = getDatabaseTypeFromDSN(dsn);
-
-    // SQLite has no password to obfuscate
-    if (type === 'sqlite') {
-      return dsn;
-    }
-
-    // Parse DSN using SafeURL
     const url = new SafeURL(dsn);
 
-    // No password to obfuscate
     if (!url.password) {
       return dsn;
     }
 
-    // Reconstruct DSN with obfuscated password
     const obfuscatedPassword = '*'.repeat(Math.min(url.password.length, 8));
     const protocol = dsn.split(':')[0];
 
@@ -124,7 +83,6 @@ export function obfuscateDSNPassword(dsn: string): string {
     }
     result += url.pathname;
 
-    // Preserve query parameters
     if (url.searchParams.size > 0) {
       const params: string[] = [];
       url.forEachSearchParam((value, key) => {
@@ -135,15 +93,12 @@ export function obfuscateDSNPassword(dsn: string): string {
 
     return result;
   } catch {
-    // If parsing fails, return original DSN
     return dsn;
   }
 }
 
 /**
  * Obfuscates sensitive information in SSH configuration for logging
- * @param config The SSH tunnel configuration
- * @returns SSH config with sensitive data replaced by asterisks
  */
 export function obfuscateSSHConfig(config: SSHTunnelConfig): Partial<SSHTunnelConfig> {
   const obfuscated: Partial<SSHTunnelConfig> = {
@@ -157,7 +112,7 @@ export function obfuscateSSHConfig(config: SSHTunnelConfig): Partial<SSHTunnelCo
   }
   
   if (config.privateKey) {
-    obfuscated.privateKey = config.privateKey; // Keep path as-is
+    obfuscated.privateKey = config.privateKey;
   }
   
   if (config.passphrase) {
@@ -168,9 +123,7 @@ export function obfuscateSSHConfig(config: SSHTunnelConfig): Partial<SSHTunnelCo
 }
 
 /**
- * Extracts the database type from a DSN string
- * @param dsn The DSN string to analyze
- * @returns The database type or undefined if cannot be determined
+ * Extracts the database type from a DSN string (postgres/postgresql only).
  */
 export function getDatabaseTypeFromDSN(dsn: string): ConnectorType | undefined {
   if (!dsn) {
@@ -181,33 +134,19 @@ export function getDatabaseTypeFromDSN(dsn: string): ConnectorType | undefined {
   return protocolToConnectorType(protocol);
 }
 
-/**
- * Maps a protocol string to a ConnectorType
- */
 function protocolToConnectorType(protocol: string): ConnectorType | undefined {
-  const mapping: Record<string, ConnectorType> = {
-    'postgres': 'postgres',
-    'postgresql': 'postgres',
-    'mysql': 'mysql',
-    'mariadb': 'mariadb',
-    'sqlserver': 'sqlserver',
-    'sqlite': 'sqlite'
-  };
-  return mapping[protocol];
+  if (protocol === 'postgres' || protocol === 'postgresql') {
+    return 'postgres';
+  }
+  return undefined;
 }
 
 /**
- * Get the default port for a database type
- * @param type The database connector type
- * @returns The default port or undefined for SQLite
+ * Default port for PostgreSQL
  */
 export function getDefaultPortForType(type: ConnectorType): number | undefined {
-  const ports: Record<ConnectorType, number | undefined> = {
-    'postgres': 5432,
-    'mysql': 3306,
-    'mariadb': 3306,
-    'sqlserver': 1433,
-    'sqlite': undefined,
-  };
-  return ports[type];
+  if (type === 'postgres') {
+    return 5432;
+  }
+  return undefined;
 }

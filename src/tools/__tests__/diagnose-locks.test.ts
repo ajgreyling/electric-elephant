@@ -84,13 +84,4 @@ describe("diagnose_locks tool", () => {
     expect(parsed.data.locks).toEqual([{ waiting_pid: 1, waiting_state: "active", blocking_state: "active" }]);
   });
 
-  it("rejects non-postgres connectors", async () => {
-    mockGetCurrentConnector.mockReturnValue(createMockConnector("sqlite"));
-    const handler = createDiagnoseLocksToolHandler();
-    const result = await handler({}, null);
-    const parsed = parseToolResponse(result);
-
-    expect(result.isError).toBe(true);
-    expect(parsed.code).toBe("UNSUPPORTED_DATABASE");
-  });
 });
