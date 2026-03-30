@@ -1,6 +1,6 @@
 {
   "name": "electric-elephant",
-  "version": "0.19.9",
+  "version": "0.21.3",
   "mcpName": "electric-elephant",
   "description": "Electric Elephant — PostgreSQL-only, readonly-first, token-efficient MCP server",
   "repository": {
@@ -47,7 +47,6 @@
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/rds-signer": "^3.1001.0",
-    "@azure/identity": "^4.8.0",
     "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "dotenv": "^16.4.7",
@@ -60,13 +59,8 @@
     "pg": "^8.13.3"
   },
   "devDependencies": {
-    "@testcontainers/mariadb": "^11.0.3",
-    "@testcontainers/mssqlserver": "^11.0.3",
-    "@testcontainers/mysql": "^11.0.3",
     "@testcontainers/postgresql": "^11.0.3",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^4.17.21",
-    "@types/mssql": "^9.1.7",
     "@types/node": "^22.13.10",
     "@types/pg": "^8.11.11",
     "@types/ssh2": "^1.15.5",
