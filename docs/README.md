@@ -1,5 +1,9 @@
 # Electric Elephant Documentation
 
+<p align="center">
+  <img src="../assets/elelctric-elephant-logo.png" alt="Electric Elephant MCP — robotic elephant logo with glowing cyan accents on black" width="420" />
+</p>
+
 Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview documentation locally:
 
 ```bash

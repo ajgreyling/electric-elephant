@@ -1,5 +1,9 @@
 # Electric Elephant
 
+<p align="center">
+  <img src="assets/elelctric-elephant-logo.png" alt="Electric Elephant MCP — robotic elephant logo with glowing cyan accents on black" width="420" />
+</p>
+
 Electric Elephant is a token-efficient MCP server for exploring and querying SQL databases from MCP-capable clients.
 
 Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyling/electric-elephant)
