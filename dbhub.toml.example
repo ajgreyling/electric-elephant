@@ -89,8 +89,11 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # TOOL CONFIGURATION (Optional)
 # ============================================================================
 #
-# By default, all sources get 'execute_sql' and 'search_objects' tools enabled.
-# Use [[tools]] entries to customize behavior per source.
+# By default, each source gets all built-in MCP tools:
+#   execute_sql, search_objects, diagnose_locks, explain_plan,
+#   replication_status, table_health, extensions_status,
+#   query_insights, schema_diff
+# Use explicit [[tools]] entries to enable only a subset (whitelist per source).
 
 # [[tools]]
 # name = "execute_sql"
@@ -101,6 +104,15 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # [[tools]]
 # name = "search_objects"
 # source = "local_pg"
+
+# [[tools]]
+# name = "query_insights"
+# source = "local_pg"
+
+# [[tools]]
+# name = "schema_diff"
+# source = "local_pg"
+# # schema_diff compares this source (left) with another; requires a second [[sources]] id as right_source
 
 # ============================================================================
 # CUSTOM TOOLS (Optional)

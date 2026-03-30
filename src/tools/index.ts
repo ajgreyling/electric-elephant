@@ -17,12 +17,16 @@ import {
   getExtensionsStatusMetadata,
   getExecuteSqlMetadata,
   getExplainPlanMetadata,
+  getQueryInsightsMetadata,
   getReplicationStatusMetadata,
+  getSchemaDiffMetadata,
   getSearchObjectsMetadata,
   getTableHealthMetadata
 } from "../utils/tool-metadata.js";
 import { isReadOnlySQL } from "../utils/allowed-keywords.js";
 import { createCustomToolHandler, buildZodSchemaFromParameters } from "./custom-tool-handler.js";
+import { createQueryInsightsToolHandler, queryInsightsSchema } from "./query-insights.js";
+import { createSchemaDiffToolHandler, schemaDiffSchema } from "./schema-diff.js";
 import type { ToolConfig } from "../types/config.js";
 import { getToolRegistry } from "./registry.js";
 import {
@@ -30,7 +34,9 @@ import {
   BUILTIN_TOOL_EXECUTE_SQL,
   BUILTIN_TOOL_EXTENSIONS_STATUS,
   BUILTIN_TOOL_EXPLAIN_PLAN,
+  BUILTIN_TOOL_QUERY_INSIGHTS,
   BUILTIN_TOOL_REPLICATION_STATUS,
+  BUILTIN_TOOL_SCHEMA_DIFF,
   BUILTIN_TOOL_TABLE_HEALTH,
   BUILTIN_TOOL_SEARCH_OBJECTS
 } from "./builtin-tools.js";
@@ -69,6 +75,10 @@ export function registerTools(server: McpServer): void {
         registerTableHealthTool(server, sourceId);
       } else if (toolConfig.name === BUILTIN_TOOL_EXTENSIONS_STATUS) {
         registerExtensionsStatusTool(server, sourceId);
+      } else if (toolConfig.name === BUILTIN_TOOL_QUERY_INSIGHTS) {
+        registerQueryInsightsTool(server, sourceId);
+      } else if (toolConfig.name === BUILTIN_TOOL_SCHEMA_DIFF) {
+        registerSchemaDiffTool(server, sourceId);
       } else {
         // Custom tool
         registerCustomTool(server, sourceId, toolConfig);
@@ -201,6 +211,38 @@ function registerTableHealthTool(
 /**
  * Register extensions_status tool for a source
  */
+function registerQueryInsightsTool(
+  server: McpServer,
+  sourceId: string
+): void {
+  const metadata = getQueryInsightsMetadata(sourceId);
+  server.registerTool(
+    metadata.name,
+    {
+      description: metadata.description,
+      inputSchema: queryInsightsSchema,
+      annotations: metadata.annotations,
+    },
+    createQueryInsightsToolHandler(sourceId)
+  );
+}
+
+function registerSchemaDiffTool(
+  server: McpServer,
+  sourceId: string
+): void {
+  const metadata = getSchemaDiffMetadata(sourceId);
+  server.registerTool(
+    metadata.name,
+    {
+      description: metadata.description,
+      inputSchema: schemaDiffSchema,
+      annotations: metadata.annotations,
+    },
+    createSchemaDiffToolHandler(sourceId)
+  );
+}
+
 function registerExtensionsStatusTool(
   server: McpServer,
   sourceId: string

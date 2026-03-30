@@ -1,0 +1,58 @@
+---
+title: "Schema diff"
+---
+
+The `schema_diff` tool compares metadata between **two configured database sources** (e.g. staging vs production). The tool registered for source **A** treats **A** as the **left** side; you pass **`right_source`** set to another source id **B**.
+
+## Requirements
+
+- **At least two** `[[sources]]` entries in `dbhub.toml` (or multi-source mode). With a single DSN / single source, the tool returns **`SCHEMA_DIFF_INSUFFICIENT_SOURCES`**.
+- **`right_source`** must be a valid source id and must **not** equal the tool’s bound source.
+
+## What is compared
+
+Controlled by **`object_types`** (default: `schema`, `table`, `column`, `index`):
+
+| Kind | Result |
+|------|--------|
+| `schema` | Schemas present on only one side (system schemas like `pg_catalog` are skipped) |
+| `table` | Table names present only on left or right |
+| `column` | Column additions/removals and type/nullable/default signature changes |
+| `index` | Index name / column / uniqueness differences |
+| `function` / `procedure` | Routine names only in one database; with **`include_definitions: true`**, definition mismatches |
+
+## Options
+
+- **`schema`** — Limit the scan to one schema name (recommended for large databases).
+- **`include_definitions`** — Include routine definition comparison (larger payloads).
+- **`max_tables`** — Cap tables loaded per schema per side (default 500, max 2000). When exceeded, lists are truncated and a warning is added.
+
+## Output
+
+- **`summary`** — Booleans for whether each category has differences.
+- **`schemas`** — `only_in_left` / `only_in_right` when `schema` is in `object_types`.
+- **`table_diffs`** — Per-schema table name deltas.
+- **`column_diffs`**, **`index_diffs`**, **`routine_diffs`** — Structured change rows with **`severity`** (`info` / `warning`).
+
+## Configuration
+
+Enabled by default per source with other built-ins. Omit from explicit `[[tools]]` lists only if you want to disable it.
+
+## Tool naming
+
+- Single source: `schema_diff` (still requires two sources in config to succeed).
+- Per-source: `schema_diff_<source_id>` — left side is that source; pass **`right_source`** for the peer.
+
+## Example
+
+From the `staging_pg` tool (`schema_diff_staging_pg` when ids are multi-source):
+
+```json
+{
+  "right_source": "prod_pg",
+  "schema": "public",
+  "object_types": ["table", "column", "index"],
+  "include_definitions": false,
+  "max_tables": 200
+}
+```

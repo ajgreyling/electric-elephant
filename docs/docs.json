@@ -26,6 +26,8 @@
               "tools/overview",
               "tools/execute-sql",
               "tools/search-objects",
+              "tools/query-insights",
+              "tools/schema-diff",
               "tools/custom-tools"
             ]
           },

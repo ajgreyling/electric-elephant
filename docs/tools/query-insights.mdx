@@ -1,0 +1,45 @@
+---
+title: "Query insights"
+---
+
+The `query_insights` tool surfaces top SQL statements from PostgreSQL **`pg_stat_statements`**, when the extension is installed. Use it to find slow or hot queries before running **`explain_plan`** on representative statements.
+
+## Prerequisites
+
+- PostgreSQL with **`CREATE EXTENSION pg_stat_statements`** (and typically `shared_preload_libraries` including `pg_stat_statements`). Use **`extensions_status`** to verify readiness.
+
+## Behaviour
+
+- If the extension is **not** installed, the tool returns successfully with `pg_stat_statements_available: false` and an empty `statements` list (no hard error).
+- If the view cannot be read (permissions, version mismatch), the tool returns a soft failure payload with a message and optional `warnings`.
+- Query text is **truncated** in the result to keep responses token-efficient. Sorting supports:
+  - **`total_time`** — total elapsed time (ms) across calls (default)
+  - **`mean_time`** — mean time per execution (ms)
+  - **`calls`** — execution count
+  - **`rows`** — total rows returned across calls
+
+Optional **`query_like`** applies a SQL `ILIKE` pattern against the normalized `query` column (e.g. `%FROM orders%`).
+
+## Configuration
+
+`query_insights` is a **built-in** tool. With no `[[tools]]` section for a source, it is enabled by default alongside other built-ins. To restrict tools, list only the names you want in TOML.
+
+## Tool naming
+
+- Single source: `query_insights`
+- Per-source (multi-config): `query_insights_<source_id>` (hyphens in ids become underscores)
+
+## Example
+
+```json
+{
+  "sort_by": "total_time",
+  "min_calls": 5,
+  "limit": 15,
+  "query_like": "%JOIN%"
+}
+```
+
+## Next steps
+
+Each row includes **`recommended_next_step`**: use **`explain_plan`** with a **single**, **read-only** statement that matches the workload you are tuning.

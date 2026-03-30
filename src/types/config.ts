@@ -125,6 +125,22 @@ export interface ExtensionsStatusToolConfig {
 }
 
 /**
+ * Built-in tool configuration for query_insights
+ */
+export interface QueryInsightsToolConfig {
+  name: "query_insights";
+  source: string;
+}
+
+/**
+ * Built-in tool configuration for schema_diff
+ */
+export interface SchemaDiffToolConfig {
+  name: "schema_diff";
+  source: string;
+}
+
+/**
  * Custom tool configuration
  */
 export interface CustomToolConfig {
@@ -148,6 +164,8 @@ export type ToolConfig =
   | ReplicationStatusToolConfig
   | TableHealthToolConfig
   | ExtensionsStatusToolConfig
+  | QueryInsightsToolConfig
+  | SchemaDiffToolConfig
   | CustomToolConfig;
 
 /**

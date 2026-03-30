@@ -10,6 +10,8 @@ export const BUILTIN_TOOL_EXPLAIN_PLAN = "explain_plan";
 export const BUILTIN_TOOL_REPLICATION_STATUS = "replication_status";
 export const BUILTIN_TOOL_TABLE_HEALTH = "table_health";
 export const BUILTIN_TOOL_EXTENSIONS_STATUS = "extensions_status";
+export const BUILTIN_TOOL_QUERY_INSIGHTS = "query_insights";
+export const BUILTIN_TOOL_SCHEMA_DIFF = "schema_diff";
 
 export const BUILTIN_TOOLS = [
   BUILTIN_TOOL_EXECUTE_SQL,
@@ -19,4 +21,6 @@ export const BUILTIN_TOOLS = [
   BUILTIN_TOOL_REPLICATION_STATUS,
   BUILTIN_TOOL_TABLE_HEALTH,
   BUILTIN_TOOL_EXTENSIONS_STATUS,
+  BUILTIN_TOOL_QUERY_INSIGHTS,
+  BUILTIN_TOOL_SCHEMA_DIFF,
 ] as const;

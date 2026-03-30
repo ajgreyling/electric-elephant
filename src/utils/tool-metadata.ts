@@ -10,13 +10,17 @@ import {
   replicationStatusSchema,
   tableHealthSchema
 } from "../tools/observability.js";
+import { queryInsightsSchema } from "../tools/query-insights.js";
+import { schemaDiffSchema } from "../tools/schema-diff.js";
 import { getToolRegistry } from "../tools/registry.js";
 import {
   BUILTIN_TOOL_DIAGNOSE_LOCKS,
   BUILTIN_TOOL_EXECUTE_SQL,
   BUILTIN_TOOL_EXPLAIN_PLAN,
   BUILTIN_TOOL_EXTENSIONS_STATUS,
+  BUILTIN_TOOL_QUERY_INSIGHTS,
   BUILTIN_TOOL_REPLICATION_STATUS,
+  BUILTIN_TOOL_SCHEMA_DIFF,
   BUILTIN_TOOL_SEARCH_OBJECTS,
   BUILTIN_TOOL_TABLE_HEALTH
 } from "../tools/builtin-tools.js";
@@ -292,6 +296,60 @@ export function getTableHealthMetadata(sourceId: string): ToolMetadata {
   };
 }
 
+export function getQueryInsightsMetadata(sourceId: string): ToolMetadata {
+  const sourceIds = ConnectorManager.getAvailableSourceIds();
+  const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
+  const dbType = sourceConfig.type;
+  const isSingleSource = sourceIds.length === 1;
+  const toolName = isSingleSource ? "query_insights" : `query_insights_${normalizeSourceId(sourceId)}`;
+  const title = isSingleSource
+    ? `Query Insights (${dbType})`
+    : `Query Insights on ${sourceId} (${dbType})`;
+  const description = isSingleSource
+    ? "Summarize top SQL statements from pg_stat_statements (when available) for performance tuning"
+    : `Summarize top SQL statements from pg_stat_statements on '${sourceId}' (when available)`;
+
+  return {
+    name: toolName,
+    description,
+    schema: queryInsightsSchema,
+    annotations: {
+      title,
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  };
+}
+
+export function getSchemaDiffMetadata(sourceId: string): ToolMetadata {
+  const sourceIds = ConnectorManager.getAvailableSourceIds();
+  const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
+  const dbType = sourceConfig.type;
+  const isSingleSource = sourceIds.length === 1;
+  const toolName = isSingleSource ? "schema_diff" : `schema_diff_${normalizeSourceId(sourceId)}`;
+  const title = isSingleSource
+    ? `Schema Diff (${dbType})`
+    : `Schema Diff from ${sourceId} (${dbType})`;
+  const description = isSingleSource
+    ? "Compare schemas, tables, columns, indexes, and optionally routines between this database and another configured source"
+    : `Compare schemas between source '${sourceId}' and another configured source (right_source parameter)`;
+
+  return {
+    name: toolName,
+    description,
+    schema: schemaDiffSchema,
+    annotations: {
+      title,
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  };
+}
+
 export function getExtensionsStatusMetadata(sourceId: string): ToolMetadata {
   const sourceIds = ConnectorManager.getAvailableSourceIds();
   const sourceConfig = ConnectorManager.getSourceConfig(sourceId)!;
@@ -466,6 +524,26 @@ function buildExtensionsStatusTool(sourceId: string): Tool {
   };
 }
 
+function buildQueryInsightsTool(sourceId: string): Tool {
+  const metadata = getQueryInsightsMetadata(sourceId);
+  return {
+    name: metadata.name,
+    description: metadata.description,
+    parameters: zodToParameters(metadata.schema),
+    readonly: true,
+  };
+}
+
+function buildSchemaDiffTool(sourceId: string): Tool {
+  const metadata = getSchemaDiffMetadata(sourceId);
+  return {
+    name: metadata.name,
+    description: metadata.description,
+    parameters: zodToParameters(metadata.schema),
+    readonly: true,
+  };
+}
+
 /**
  * Build custom tool metadata for API response
  */
@@ -508,6 +586,10 @@ export function getToolsForSource(sourceId: string): Tool[] {
       return buildTableHealthTool(sourceId);
     } else if (toolConfig.name === BUILTIN_TOOL_EXTENSIONS_STATUS) {
       return buildExtensionsStatusTool(sourceId);
+    } else if (toolConfig.name === BUILTIN_TOOL_QUERY_INSIGHTS) {
+      return buildQueryInsightsTool(sourceId);
+    } else if (toolConfig.name === BUILTIN_TOOL_SCHEMA_DIFF) {
+      return buildSchemaDiffTool(sourceId);
     } else {
       // Custom tool
       return buildCustomTool(toolConfig);

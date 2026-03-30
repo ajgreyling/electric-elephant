@@ -26,7 +26,10 @@ src/
 │   └── ...              # PostgreSQL connector support code
 ├── tools/               # MCP tool handlers
 │   ├── execute-sql.ts   # SQL execution handler
-│   └── search-objects.ts  # Unified search/list with progressive disclosure
+│   ├── search-objects.ts # Unified search/list with progressive disclosure
+│   ├── query-insights.ts # pg_stat_statements summaries
+│   ├── schema-diff.ts   # Two-source schema comparison
+│   ├── diagnose-locks.ts, explain-plan.ts, observability.ts, custom-tool-handler.ts, ...
 ├── utils/               # Shared utilities
 │   ├── dsn-obfuscator.ts# DSN security
 │   ├── response-formatter.ts # Output formatting

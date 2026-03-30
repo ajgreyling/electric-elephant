@@ -13,6 +13,8 @@ import type {
   ReplicationStatusToolConfig,
   TableHealthToolConfig,
   ExtensionsStatusToolConfig,
+  QueryInsightsToolConfig,
+  SchemaDiffToolConfig,
   ParameterConfig
 } from "../types/config.js";
 import { BUILTIN_TOOLS } from "./builtin-tools.js";
@@ -208,8 +210,14 @@ export class ToolRegistry {
             return { name: "replication_status", source: source.id } satisfies ReplicationStatusToolConfig;
           } else if (name === "table_health") {
             return { name: "table_health", source: source.id } satisfies TableHealthToolConfig;
-          } else {
+          } else if (name === "extensions_status") {
             return { name: "extensions_status", source: source.id } satisfies ExtensionsStatusToolConfig;
+          } else if (name === "query_insights") {
+            return { name: "query_insights", source: source.id } satisfies QueryInsightsToolConfig;
+          } else if (name === "schema_diff") {
+            return { name: "schema_diff", source: source.id } satisfies SchemaDiffToolConfig;
+          } else {
+            throw new Error(`Unknown built-in tool name in registry: ${name}`);
           }
         });
         registry.set(source.id, defaultTools);

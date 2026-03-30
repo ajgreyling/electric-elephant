@@ -639,6 +639,8 @@ export async function resolveSourceConfigs(): Promise<{
       { name: "replication_status", source: sourceId },
       { name: "table_health", source: sourceId },
       { name: "extensions_status", source: sourceId },
+      { name: "query_insights", source: sourceId },
+      { name: "schema_diff", source: sourceId },
     ];
 
     return {

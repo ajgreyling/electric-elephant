@@ -10,7 +10,7 @@ Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyl
 
 ## Purpose
 
-- Expose PostgreSQL through MCP tools (`execute_sql`, `search_objects`, and related wiring).
+- Expose PostgreSQL through MCP tools (`execute_sql`, `search_objects`, `query_insights`, `schema_diff`, observability helpers, and related wiring).
 - PostgreSQL-only: no connectors or compatibility layers for other SQL databases.
 - Provide safe defaults (read-only unless explicitly enabled for destructive SQL).
 - Heuristic PII/clinical guard on `execute_sql` (wildcards and sensitive-looking columns blocked unless explicitly opted in via TOML, env, or CLI — see `docs/tools/execute-sql.mdx` and `CLAUDE.md`).
@@ -20,7 +20,7 @@ Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyl
 - `src/index.ts` - entrypoint and startup path.
 - `src/server.ts` - HTTP MCP transport wiring.
 - `src/connectors/` - database connector implementations.
-- `src/tools/` - MCP tool handlers (`execute_sql`, `search_objects`).
+- `src/tools/` - MCP tool handlers (`execute_sql`, `search_objects`, `query_insights`, `schema_diff`, etc.).
 - `src/config/` - TOML/config loading and validation.
 - `frontend/` - local web workbench UI.
 - `CLAUDE.md` - architecture and development conventions.

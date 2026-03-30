@@ -4,25 +4,32 @@ title: "Overview"
 
 ## Available Tools
 
-| Tool        | Command Name  | Description                                                         |
-| ----------- | ------------- | ------------------------------------------------------------------- |
+| Tool | Command name | Description |
+| ---- | ------------ | ----------- |
 | Execute SQL | `execute_sql` or `execute_sql_{id}` | Execute single or multiple SQL statements (separated by semicolons) |
-| Search Objects | `search_objects` or `search_objects_{id}` | Search and list database objects (schemas, tables, columns, procedures, functions, indexes) with pattern matching and token-efficient progressive disclosure |
-| Custom Tools | User-defined names | Define reusable, parameterized SQL operations in your `dbhub.toml` configuration file |
+| Search Objects | `search_objects` or `search_objects_{id}` | Search and list database objects (schemas, tables, columns, procedures, functions, indexes) with pattern matching and progressive disclosure |
+| Diagnose Locks | `diagnose_locks` or `diagnose_locks_{id}` | PostgreSQL lock blockers / waiting sessions |
+| Explain Plan | `explain_plan` or `explain_plan_{id}` | Structured `EXPLAIN (FORMAT JSON, …)` for one read-only statement |
+| Replication Status | `replication_status` or `replication_status_{id}` | Replication role, streaming clients, slot health |
+| Table Health | `table_health` or `table_health_{id}` | Dead tuples, vacuum/analyze recency, relation sizes |
+| Extensions Status | `extensions_status` or `extensions_status_{id}` | Installed extensions and `pg_stat_statements` readiness |
+| Query Insights | `query_insights` or `query_insights_{id}` | Top statements from `pg_stat_statements` when available ([details](/tools/query-insights)) |
+| Schema Diff | `schema_diff` or `schema_diff_{id}` | Compare schema metadata between two sources ([details](/tools/schema-diff)) |
+| Custom Tools | User-defined names | Parameterized SQL operations in `dbhub.toml` |
 
 ## Tool Configuration
 
-By default, both `execute_sql` and `search_objects` are enabled for each database source. You can customize which tools are available using `[[tools]]` entries in your `dbhub.toml`:
+By default, **all built-in tools** listed above are enabled for each database source. You can customize which tools are available using `[[tools]]` entries in your `dbhub.toml`:
 
 ### Default Behavior
 
-If no `[[tools]]` entries are defined for a source, both `execute_sql` and `search_objects` are enabled by default:
+If no `[[tools]]` entries are defined for a source, every built-in tool is enabled for that source:
 
 ```toml
 [[sources]]
 id = "dev"
 dsn = "postgres://postgres:postgres@localhost:5432/myapp"
-# No [[tools]] entries = both execute_sql and search_objects enabled
+# No [[tools]] entries = all built-in tools enabled for this source
 ```
 
 ### Selective Tool Exposure
@@ -162,6 +169,12 @@ Special characters in source IDs (hyphens, dots, etc.) are converted to undersco
   </Card>
   <Card title="Search Objects" icon="magnifying-glass" href="/tools/search-objects">
     Search and explore database schemas, tables, and objects
+  </Card>
+  <Card title="Query Insights" icon="chart-line" href="/tools/query-insights">
+    Top queries from pg_stat_statements
+  </Card>
+  <Card title="Schema Diff" icon="columns" href="/tools/schema-diff">
+    Compare two PostgreSQL sources
   </Card>
   <Card title="Custom Tools" icon="wrench" href="/tools/custom-tools">
     Create reusable parameterized SQL operations
