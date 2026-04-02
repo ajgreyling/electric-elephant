@@ -44,7 +44,7 @@ This means the naming convention matters — integration tests MUST have `integr
 
 **Unit tests** (~20 files, no Docker needed):
 - `src/utils/__tests__/` — Utility function tests (SQL parsing, DSN obfuscation, SSH config, allowed keywords, identifier quoting, parameter mapping, row limiting, safe URL, config watcher, AWS RDS signer, PII heuristics when present)
-- `src/tools/__tests__/` — Tool handler tests (execute-sql including PII guard / `PII_ACCESS_VIOLATION`, search-objects, custom-tool-handler)
+- `src/tools/__tests__/` — Tool handler tests (execute-sql including PII guard / `PII_ACCESS_VIOLATION` and standards-aware HL7v2/FHIR/LOINC/SNOMED blocking coverage, search-objects, custom-tool-handler)
 - `src/config/__tests__/` — Configuration tests (env parsing, TOML loading)
 - `src/connectors/__tests__/` — Connector unit tests (dsn-parser, manager)
 - `src/requests/__tests__/` — Request store tests

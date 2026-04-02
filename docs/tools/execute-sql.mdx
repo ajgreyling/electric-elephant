@@ -154,7 +154,28 @@ npx electric-elephant --max-rows 1000 --dsn "..."
 
 ## PII and clinical data guard
 
-For `execute_sql`, **`allow_access_to_pii_data` defaults to false** (fail-safe): the server can block queries before they run when the projection looks like it would expose personally identifiable information or sensitive clinical fields — including identity/contact columns, HIV/TB and related diagnostic markers, blood and common lab panels, pathology and chart-note style names, camelCase identifiers (e.g. HIV status fields), wildcard `SELECT *`, or `schema.table.*`. Heuristics are name-based and may block or allow incorrectly for unusual schemas; narrow projections or opt in only with explicit policy.
+For `execute_sql`, **`allow_access_to_pii_data` defaults to false** (fail-safe): the server can block queries before they run when the projection looks like it would expose personally identifiable information or sensitive clinical fields — including identity/contact columns, HIV/TB and related diagnostic markers, blood and common lab panels, pathology and chart-note style names, camelCase identifiers (e.g. HIV status fields), wildcard `SELECT *`, or `schema.table.*`.
+
+You can optionally scope heuristic matching with:
+
+```toml
+[[tools]]
+name = "execute_sql"
+source = "production"
+clinical_standards = ["hl7v2", "fhir", "loinc", "snomed"]
+```
+
+- Supported values: `hl7v2`, `fhir`, `loinc`, `snomed`
+- If omitted, **all standards are enabled by default**
+- The configured standards only affect name-based heuristic matching and do not bypass wildcard blocking
+
+Examples of covered naming styles:
+- HL7v2/LIS: `hl7messagecontrolid`, `elzId`, `orderID`, `barcode`, `testtype_fields`, `resultForAction`
+- FHIR: `subject_reference`, `observation_value`, `condition_code`
+- LOINC: `loinc_code`, `loinc_number`
+- SNOMED: `snomed_ct_code`, `concept_id`
+
+Heuristics are name-based and may block or allow incorrectly for unusual schemas; narrow projections or opt in only with explicit policy.
 
 When a query is blocked, the tool returns an error with code **`PII_ACCESS_VIOLATION`**, including:
 

@@ -29,6 +29,17 @@ describe("pii-sql-guard", () => {
     }
   });
 
+  it("blocks eLabs HL7/clinical payload fields", () => {
+    const r = validateSqlPiiAccessGuard(
+      "SELECT barcode, orderID, hl7messagecontrolid, resultForAction FROM results_integration",
+      false
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe("suspected_pii_or_clinical_column");
+    }
+  });
+
   it("scans RETURNING lists in write statements", () => {
     const r = validateSqlPiiAccessGuard(
       `UPDATE users SET name = 'x' WHERE id = 1 RETURNING email`,
@@ -39,6 +50,33 @@ describe("pii-sql-guard", () => {
 
   it("allows everything when allowAccess is true", () => {
     expect(validateSqlPiiAccessGuard("SELECT * FROM patients", true)).toEqual({ ok: true });
+  });
+
+  it("blocks FHIR/LOINC/SNOMED columns by default (all standards enabled)", () => {
+    const r = validateSqlPiiAccessGuard(
+      "SELECT subject_reference, loinc_code, snomed_ct_code FROM observations",
+      false
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe("suspected_pii_or_clinical_column");
+    }
+  });
+
+  it("respects explicitly configured clinical standards", () => {
+    const allowWhenFhirDisabled = validateSqlPiiAccessGuard(
+      "SELECT subject_reference FROM observations",
+      false,
+      ["hl7v2"]
+    );
+    expect(allowWhenFhirDisabled).toEqual({ ok: true });
+
+    const blockWhenFhirEnabled = validateSqlPiiAccessGuard(
+      "SELECT subject_reference FROM observations",
+      false,
+      ["fhir"]
+    );
+    expect(blockWhenFhirEnabled.ok).toBe(false);
   });
 
   it("evaluates each statement in a batch", () => {

@@ -278,6 +278,45 @@ describe('execute-sql tool', () => {
       expect(mockConnector.executeSQL).not.toHaveBeenCalled();
     });
 
+    it('should block eLabs HL7 and result payload fields', async () => {
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler(
+        { sql: 'SELECT barcode, orderID, hl7messagecontrolid, resultForAction FROM results_integration' },
+        null
+      );
+
+      expect(parseToolResponse(result).code).toBe('PII_ACCESS_VIOLATION');
+      expect(parseToolResponse(result).details?.reason).toBe('suspected_pii_or_clinical_column');
+      expect(mockConnector.executeSQL).not.toHaveBeenCalled();
+    });
+
+    it('should block FHIR/LOINC/SNOMED projection names by default', async () => {
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler(
+        { sql: 'SELECT subject_reference, loinc_code, snomed_ct_code FROM observations' },
+        null
+      );
+
+      expect(parseToolResponse(result).code).toBe('PII_ACCESS_VIOLATION');
+      expect(mockConnector.executeSQL).not.toHaveBeenCalled();
+    });
+
+    it('should honor configured clinical_standards selection', async () => {
+      mockGetToolRegistry.mockReturnValue({
+        getBuiltinToolConfig: vi.fn().mockReturnValue({
+          clinical_standards: ['hl7v2'],
+        }),
+      } as any);
+      const mockResult: SQLResult = { rows: [{ id: 1 }], rowCount: 1 };
+      vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
+
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql: 'SELECT subject_reference FROM observations' }, null);
+
+      expect(parseToolResponse(result).success).toBe(true);
+      expect(mockConnector.executeSQL).toHaveBeenCalled();
+    });
+
     it('should allow benign column lists when guard is active', async () => {
       const mockResult: SQLResult = { rows: [{ id: 1 }], rowCount: 1 };
       vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);

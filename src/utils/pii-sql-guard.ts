@@ -1,4 +1,5 @@
 import {
+  type ClinicalStandard,
   findPiiMatchesInProjectionText,
   projectionItemIsWildcard,
 } from "./pii-heuristics.js";
@@ -154,7 +155,8 @@ function collectReturningProjectionsAtDepthZero(
 
 function analyzeProjectionListString(
   listStr: string,
-  nest: number
+  nest: number,
+  enabledStandards?: ClinicalStandard[]
 ): { wildcards: string[]; pii: string[] } {
   const wildcards: string[] = [];
   const pii: string[] = [];
@@ -169,7 +171,7 @@ function analyzeProjectionListString(
     if (nest < MAX_NEST && isFullyWrappedInParens(trimmed)) {
       const body = trimmed.slice(1, -1).trim();
       if (isKeywordAt(body, 0, "select")) {
-        const nested = scanStatementInternal(body, nest + 1);
+        const nested = scanStatementInternal(body, nest + 1, enabledStandards);
         wildcards.push(...nested.wildcards);
         for (const p of nested.pii) {
           if (!pii.includes(p)) { pii.push(p); }
@@ -177,7 +179,7 @@ function analyzeProjectionListString(
       }
     }
 
-    const matches = findPiiMatchesInProjectionText(item);
+      const matches = findPiiMatchesInProjectionText(item, enabledStandards);
     for (const m of matches) {
       if (!pii.includes(m)) { pii.push(m); }
     }
@@ -187,14 +189,15 @@ function analyzeProjectionListString(
 
 function scanStatementInternal(
   strippedStmt: string,
-  nest: number
+  nest: number,
+  enabledStandards?: ClinicalStandard[]
 ): { wildcards: string[]; pii: string[] } {
   const allWild: string[] = [];
   const allPii: string[] = [];
 
   const selects = collectAllSelectProjections(strippedStmt);
   for (const rawList of selects) {
-    const { wildcards, pii } = analyzeProjectionListString(rawList, nest);
+    const { wildcards, pii } = analyzeProjectionListString(rawList, nest, enabledStandards);
     allWild.push(...wildcards);
     for (const p of pii) {
       if (!allPii.includes(p)) { allPii.push(p); }
@@ -207,7 +210,7 @@ function scanStatementInternal(
     strippedStmt.length
   );
   for (const rawList of returnings) {
-    const { wildcards, pii } = analyzeProjectionListString(rawList, nest);
+    const { wildcards, pii } = analyzeProjectionListString(rawList, nest, enabledStandards);
     allWild.push(...wildcards);
     for (const p of pii) {
       if (!allPii.includes(p)) { allPii.push(p); }
@@ -220,8 +223,11 @@ function scanStatementInternal(
   };
 }
 
-function scanStatement(strippedStmt: string): { wildcards: string[]; pii: string[] } {
-  return scanStatementInternal(strippedStmt, 0);
+function scanStatement(
+  strippedStmt: string,
+  enabledStandards?: ClinicalStandard[]
+): { wildcards: string[]; pii: string[] } {
+  return scanStatementInternal(strippedStmt, 0, enabledStandards);
 }
 
 function buildRemediationMessage(
@@ -248,7 +254,8 @@ function buildRemediationMessage(
  */
 export function validateSqlPiiAccessGuard(
   sql: string,
-  allowAccess: boolean
+  allowAccess: boolean,
+  enabledStandards?: ClinicalStandard[]
 ): { ok: true } | PiiGuardFailure {
   if (allowAccess) {
     return { ok: true };
@@ -256,7 +263,7 @@ export function validateSqlPiiAccessGuard(
   const statements = splitSQLStatements(sql);
   for (const stmt of statements) {
     const stripped = stripCommentsAndStrings(stmt);
-    const { wildcards, pii } = scanStatement(stripped);
+    const { wildcards, pii } = scanStatement(stripped, enabledStandards);
     if (wildcards.length > 0) {
       return {
         ok: false,

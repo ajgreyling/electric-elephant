@@ -29,7 +29,12 @@ src/
 │   ├── search-objects.ts # Unified search/list with progressive disclosure
 │   ├── query-insights.ts # pg_stat_statements summaries
 │   ├── schema-diff.ts   # Two-source schema comparison
-│   ├── diagnose-locks.ts, explain-plan.ts, observability.ts, custom-tool-handler.ts, ...
+│   ├── diagnose-locks.ts
+│   ├── explain-plan.ts
+│   ├── observability.ts
+│   ├── custom-tool-handler.ts
+│   ├── registry.ts
+│   └── index.ts
 ├── utils/               # Shared utilities
 │   ├── dsn-obfuscator.ts# DSN security
 │   ├── response-formatter.ts # Output formatting
@@ -55,13 +60,15 @@ Key architectural patterns:
   - Tests in `src/__tests__/json-rpc-integration.test.ts`
 - **Tool Handlers**: Clean separation of MCP protocol concerns
   - Tools accept optional `source_id` parameter for multi-source PostgreSQL routing
-- **PII / clinical column guard (`execute_sql`)**: Unless `allow_access_to_pii_data` is explicitly true (TOML per tool, or single-DSN `--allow-access-to-pii-data=true` / `ALLOW_ACCESS_TO_PII_DATA`), the server blocks wildcard projections (`*`, `table.*`) and SELECT/RETURNING items that match PII or sensitive clinical heuristics. Violations return structured errors with code `PII_ACCESS_VIOLATION`. Logic lives in `src/utils/pii-sql-guard.ts` and `src/utils/pii-heuristics.ts`, wired from `src/tools/execute-sql.ts`.
+- **PII / clinical column guard (`execute_sql`)**: Unless `allow_access_to_pii_data` is explicitly true (TOML per tool, or single-DSN `--allow-access-to-pii-data=true` / `ALLOW_ACCESS_TO_PII_DATA`), the server blocks wildcard projections (`*`, `table.*`) and SELECT/RETURNING items that match PII or sensitive clinical heuristics. Guard profiles are standards-aware via optional `clinical_standards = ["hl7v2","fhir","loinc","snomed"]` on the `execute_sql` tool (default: all standards enabled). This covers HL7/LIS-oriented field names (for example `hl7messagecontrolid`, `elzId`, `orderID`, `barcode`, `batchbarcode`, `testtype_fields`, `resultForAction`) and FHIR/LOINC/SNOMED-style projections. Violations return structured errors with code `PII_ACCESS_VIOLATION`. Logic lives in `src/utils/pii-sql-guard.ts` and `src/utils/pii-heuristics.ts`, wired from `src/tools/execute-sql.ts`.
 - **Token-Efficient Schema Exploration**: Unified search/list tool with progressive disclosure
   - `search_objects`: Single tool for both pattern-based search and listing all objects
   - Pattern parameter defaults to `%` (match all) - optional for listing use cases
   - Detail levels: `names` (minimal), `summary` (with metadata), `full` (complete structure)
   - Supports: schemas, tables, columns, procedures, indexes
   - Inspired by Anthropic's MCP code execution patterns for reducing token usage
+- **Query insights (`query_insights`)**: Surfaces top statements from `pg_stat_statements` (with graceful fallback when the extension is missing or unreadable). See `src/tools/query-insights.ts` and `docs/tools/query-insights.mdx`.
+- **Schema drift (`schema_diff`)**: Compares schemas, tables, columns, indexes, and optionally routines between two configured `[[sources]]` ids (`right_source` vs the tool’s bound source). See `src/tools/schema-diff.ts` and `docs/tools/schema-diff.mdx`.
 - **Integration Test Base**: Shared test utilities for consistent connector testing
 
 ## Configuration
@@ -139,7 +146,7 @@ Electric Elephant supports three configuration methods (in priority order):
 ## PostgreSQL Connector
 
 - Primary connector implementation: `src/connectors/postgres/index.ts`
-- Implements the `Connector` and `DSNParser` interfaces from `src/interfaces/connector.ts`
+- Implements the `Connector` and `DSNParser` interfaces from `src/connectors/interface.ts`
 - DSN example: `postgres://user:password@localhost:5432/dbname?sslmode=disable`
 - SSL modes: `sslmode=disable` (no SSL) or `sslmode=require` (SSL without cert verification)
 

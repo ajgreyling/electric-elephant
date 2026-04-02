@@ -29,6 +29,8 @@ describe("pii-heuristics", () => {
       expect(findPiiMatchesInProjectionText("email")).toContain("email");
       expect(findPiiMatchesInProjectionText("user_email")).toContain("email");
       expect(findPiiMatchesInProjectionText("tax_id")).toContain("tax id");
+      expect(findPiiMatchesInProjectionText("identifier_fields")).toContain("identifier fields");
+      expect(findPiiMatchesInProjectionText("hos_number")).toContain("hos number");
     });
 
     it("matches HIV/TB and related infectious-disease markers", () => {
@@ -43,6 +45,28 @@ describe("pii-heuristics", () => {
       expect(findPiiMatchesInProjectionText("blood_glucose")).toContain("blood glucose");
       expect(findPiiMatchesInProjectionText("hemoglobin_a1c")).toContain("hemoglobin a1c");
       expect(findPiiMatchesInProjectionText("platelet_count")).toContain("platelet");
+      expect(findPiiMatchesInProjectionText("result_status")).toContain("result status");
+    });
+
+    it("matches eLabs HL7 and LIS projection names", () => {
+      expect(findPiiMatchesInProjectionText("hl7messagecontrolid")).toContain("hl7messagecontrolid");
+      expect(findPiiMatchesInProjectionText("elzId")).toContain("elz id");
+      expect(findPiiMatchesInProjectionText("orderID")).toContain("order id");
+      expect(findPiiMatchesInProjectionText("testtype_fields")).toContain("testtype fields");
+      expect(findPiiMatchesInProjectionText("resultForAction")).toContain("result for action");
+    });
+
+    it("matches FHIR/LOINC/SNOMED projection names when standards are enabled", () => {
+      expect(findPiiMatchesInProjectionText("subject_reference")).toContain("subject reference");
+      expect(findPiiMatchesInProjectionText("loinc_code")).toContain("loinc code");
+      expect(findPiiMatchesInProjectionText("snomed_ct_code")).toContain("snomed ct");
+    });
+
+    it("honors selected clinical standards", () => {
+      expect(findPiiMatchesInProjectionText("subject_reference", ["hl7v2"])).toEqual([]);
+      expect(findPiiMatchesInProjectionText("subject_reference", ["fhir"])).toContain("subject reference");
+      expect(findPiiMatchesInProjectionText("loinc_code", ["snomed"])).toEqual([]);
+      expect(findPiiMatchesInProjectionText("snomed_ct_code", ["snomed"])).toContain("snomed ct");
     });
 
     it("matches structured clinical documentation phrases", () => {

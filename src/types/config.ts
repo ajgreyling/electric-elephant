@@ -74,6 +74,11 @@ export interface ExecuteSqlToolConfig {
   max_rows?: number;
   /** When false (default if omitted), execute_sql may block queries that appear to expose PII or sensitive clinical fields. */
   allow_access_to_pii_data?: boolean;
+  /**
+   * Optional standards-aware profile for clinical projection heuristics.
+   * Defaults to all supported standards when omitted.
+   */
+  clinical_standards?: ("hl7v2" | "fhir" | "loinc" | "snomed")[];
 }
 
 /**

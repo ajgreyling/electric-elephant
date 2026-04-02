@@ -10,6 +10,10 @@ import {
 } from "../utils/tool-handler-helpers.js";
 import { splitSQLStatements } from "../utils/sql-parser.js";
 import { validateSqlPiiAccessGuard } from "../utils/pii-sql-guard.js";
+import {
+  DEFAULT_CLINICAL_STANDARDS,
+  type ClinicalStandard,
+} from "../utils/pii-heuristics.js";
 
 // Schema for execute_sql tool
 export const executeSqlSchema = {
@@ -62,7 +66,13 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
       }
 
       const allowPiiAccess = toolConfig?.allow_access_to_pii_data === true;
-      const piiGuard = validateSqlPiiAccessGuard(sql, allowPiiAccess);
+      const configuredStandards =
+        (toolConfig as { clinical_standards?: ClinicalStandard[] } | undefined)?.clinical_standards;
+      const enabledStandards =
+        configuredStandards && configuredStandards.length > 0
+          ? configuredStandards
+          : DEFAULT_CLINICAL_STANDARDS;
+      const piiGuard = validateSqlPiiAccessGuard(sql, allowPiiAccess, enabledStandards);
       if (!piiGuard.ok) {
         errorMessage = piiGuard.message;
         success = false;

@@ -1,6 +1,6 @@
 ---
 name: electric-elephant
-description: Guide for querying databases through Electric Elephant server. Use this skill whenever you need to explore database schemas, inspect tables, or run SQL queries via Electric Elephant's MCP tools (search_objects, execute_sql). Activates on any database query task, schema exploration, data retrieval, or SQL execution through MCP — even if the user just says "check the database" or "find me some data." This skill ensures you follow the correct explore-first workflow instead of guessing table structures.
+description: Guide for querying databases through Electric Elephant server. Use this skill whenever you need to explore database schemas, inspect tables, run SQL, tune queries, or compare two Postgres sources via MCP tools (search_objects, execute_sql, query_insights, schema_diff, explain_plan, and other built-ins). Activates on database query tasks, schema exploration, performance hints, drift checks, data retrieval, or SQL execution through MCP.
 ---
 
 # Electric Elephant Database Query Guide
@@ -9,18 +9,27 @@ When working with databases through Electric Elephant's MCP server, always follo
 
 ## Available Tools
 
-Electric Elephant provides two MCP tools:
+Electric Elephant registers **built-in** tools per configured PostgreSQL source (default: all enabled; narrow with explicit `[[tools]]` in TOML). Common tools:
 
 | Tool | Purpose |
 |------|---------|
-| `search_objects` | Explore database structure — schemas, tables, columns, indexes, procedures, functions |
-| `execute_sql` | Run SQL statements against the database |
+| `search_objects` | Explore schemas, tables, columns, indexes, procedures, functions (progressive detail) |
+| `execute_sql` | Run SQL (multi-statement); optional PII/clinical column **fail-closed** guard |
+| `query_insights` | Top statements from `pg_stat_statements` when the extension is available |
+| `schema_diff` | Compare schema metadata between this source and another (`right_source` argument; needs ≥2 sources in config) |
+| `explain_plan` | Structured `EXPLAIN` for one read-only statement |
+| `diagnose_locks` | Lock blockers / waiting sessions |
+| `replication_status` | Replication / slots |
+| `table_health` | Dead tuples, vacuum/analyze, sizes |
+| `extensions_status` | Extensions + `pg_stat_statements` readiness |
 
-If multiple PostgreSQL sources are configured, Electric Elephant registers separate tools for each source (for example, `search_objects_prod_pg`, `execute_sql_staging_pg`). Select the desired source by calling the correspondingly named tool.
+**Custom tools** — parameterized SQL snippets in `dbhub.toml` — appear as additional tool names.
+
+If multiple PostgreSQL sources are configured, tool names are suffixed with the source id (for example, `search_objects_prod_pg`, `execute_sql_staging_pg`). Select the desired source by calling the matching tool name.
 
 ### PII and clinical column guard (`execute_sql`)
 
-By default, `execute_sql` uses a **fail-closed** guard: it can reject queries that use `SELECT *` / `table.*` or that list columns or aliases matching PII or sensitive clinical heuristics. The tool response uses code **`PII_ACCESS_VIOLATION`** with a reason such as `wildcard_projection` or `suspected_pii_or_clinical_column`.
+By default, `execute_sql` uses a **fail-closed** guard: it can reject queries that use `SELECT *` / `table.*` or that list columns or aliases matching PII or sensitive clinical heuristics. Guard matching is standards-aware via optional per-tool config `clinical_standards = ["hl7v2","fhir","loinc","snomed"]` (default: all enabled), covering HL7/LIS plus FHIR/LOINC/SNOMED naming styles. The tool response uses code **`PII_ACCESS_VIOLATION`** with a reason such as `wildcard_projection` or `suspected_pii_or_clinical_column`.
 
 **Agent behavior:**
 
@@ -108,7 +117,9 @@ search_objects_staging_pg(object_type="table", schema="public", detail_level="na
 execute_sql_staging_pg(sql="SELECT count(*) FROM public.orders")
 ```
 
-In single-source setups, the tools are simply `search_objects` and `execute_sql` without any suffix. When the user mentions a specific PostgreSQL environment, call the correspondingly named tool.
+In single-source setups, built-in tools have no id suffix (for example `search_objects`, `execute_sql`). When the user mentions a specific PostgreSQL environment, call the correspondingly suffixed tool.
+
+**Performance / drift:** Use `query_insights` (after confirming `pg_stat_statements` via `extensions_status`) to spot hot queries, then `explain_plan` on a representative read-only statement. Use `schema_diff` from one configured source with `right_source` set to the peer id when comparing staging vs production schema metadata.
 
 ## Searching for Specific Objects
 

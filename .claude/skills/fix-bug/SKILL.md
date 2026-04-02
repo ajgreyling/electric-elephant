@@ -44,7 +44,7 @@ Use the issue details to identify which part of the codebase is affected. Electr
 |-------------|--------------|-----------|
 | Connection failures | Connector implementations | `src/connectors/postgres/index.ts`, `src/connectors/manager.ts` |
 | SQL execution errors | Tool handlers | `src/tools/execute-sql.ts`, `src/utils/allowed-keywords.ts` |
-| `PII_ACCESS_VIOLATION` / blocked SELECT lists | PII guard | `src/utils/pii-sql-guard.ts`, `src/utils/pii-heuristics.ts`, `src/tools/execute-sql.ts` |
+| `PII_ACCESS_VIOLATION` / blocked SELECT lists | PII guard | `src/utils/pii-sql-guard.ts`, `src/utils/pii-heuristics.ts`, `src/tools/execute-sql.ts` (check `allow_access_to_pii_data` and optional `clinical_standards` config) |
 | Schema/table listing | Search tool | `src/tools/search-objects.ts` |
 | DSN parsing issues | Parser logic | `src/connectors/postgres/index.ts` (DSNParser), `src/utils/dsn-obfuscate.ts`, `src/utils/safe-url.ts` |
 | SSH tunnel problems | Tunnel utilities | `src/utils/ssh-tunnel.ts`, `src/utils/ssh-config-parser.ts` |

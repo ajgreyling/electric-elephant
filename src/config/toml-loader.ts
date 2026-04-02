@@ -7,6 +7,8 @@ import { parseCommandLineArgs } from "./env.js";
 import { parseConnectionInfoFromDSN, getDefaultPortForType } from "../utils/dsn-obfuscate.js";
 import { BUILTIN_TOOLS, BUILTIN_TOOL_EXECUTE_SQL, BUILTIN_TOOL_SEARCH_OBJECTS } from "../tools/builtin-tools.js";
 
+const ALLOWED_CLINICAL_STANDARDS = new Set(["hl7v2", "fhir", "loinc", "snomed"]);
+
 /**
  * Load and parse TOML configuration file
  * Returns the parsed sources array, tools array, and the source of the config file
@@ -193,10 +195,11 @@ function validateToolsConfig(
         !isExecuteSql &&
         (tool.readonly !== undefined ||
           tool.max_rows !== undefined ||
-          tool.allow_access_to_pii_data !== undefined)
+          tool.allow_access_to_pii_data !== undefined ||
+          (tool as { clinical_standards?: unknown }).clinical_standards !== undefined)
       ) {
         throw new Error(
-          `Configuration file ${configPath}: tool '${tool.name}' cannot have readonly, max_rows, or allow_access_to_pii_data fields ` +
+          `Configuration file ${configPath}: tool '${tool.name}' cannot have readonly, max_rows, allow_access_to_pii_data, or clinical_standards fields ` +
             `(these are only valid for ${BUILTIN_TOOL_EXECUTE_SQL} tool)`
         );
       }
@@ -238,6 +241,30 @@ function validateToolsConfig(
         throw new Error(
           `Configuration file ${configPath}: tool '${tool.name}' has invalid allow_access_to_pii_data. Must be a boolean (true or false).`
         );
+      }
+    }
+
+    // Validate clinical_standards if present (execute_sql only)
+    const clinicalStandardsRaw = (tool as { clinical_standards?: unknown }).clinical_standards;
+    if (clinicalStandardsRaw !== undefined) {
+      if (!isExecuteSql) {
+        throw new Error(
+          `Configuration file ${configPath}: tool '${tool.name}' cannot have clinical_standards field ` +
+            `(only valid for ${BUILTIN_TOOL_EXECUTE_SQL})`
+        );
+      }
+      if (!Array.isArray(clinicalStandardsRaw) || clinicalStandardsRaw.length === 0) {
+        throw new Error(
+          `Configuration file ${configPath}: tool '${tool.name}' has invalid clinical_standards. Must be a non-empty array.`
+        );
+      }
+      for (const standard of clinicalStandardsRaw) {
+        if (typeof standard !== "string" || !ALLOWED_CLINICAL_STANDARDS.has(standard)) {
+          throw new Error(
+            `Configuration file ${configPath}: tool '${tool.name}' has invalid clinical_standards value '${String(standard)}'. ` +
+              `Valid values: ${Array.from(ALLOWED_CLINICAL_STANDARDS).join(", ")}`
+          );
+        }
       }
     }
   }

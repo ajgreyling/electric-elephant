@@ -13,7 +13,7 @@ Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyl
 - Expose PostgreSQL through MCP tools (`execute_sql`, `search_objects`, `query_insights`, `schema_diff`, observability helpers, and related wiring).
 - PostgreSQL-only: no connectors or compatibility layers for other SQL databases.
 - Provide safe defaults (read-only unless explicitly enabled for destructive SQL).
-- Heuristic PII/clinical guard on `execute_sql` (wildcards and sensitive-looking columns blocked unless explicitly opted in via TOML, env, or CLI — see `docs/tools/execute-sql.mdx` and `CLAUDE.md`).
+- Heuristic PII/clinical guard on `execute_sql` (wildcards and sensitive-looking columns blocked unless explicitly opted in via TOML, env, or CLI — including HL7v2/FHIR/LOINC/SNOMED-style clinical identifiers; see `docs/tools/execute-sql.mdx` and `CLAUDE.md`).
 
 ## Repository Landmarks
 
@@ -46,12 +46,31 @@ flowchart LR
     A[MCP Client] --> B[Transport: stdio or HTTP]
     B --> C[Tool Router]
     C --> D{Tool}
-    D -->|execute_sql| E[Connector Manager]
-    D -->|search_objects| E
+    D -->|execute_sql search_objects query_insights schema_diff ...| E[Connector Manager]
     E --> F[PostgreSQL connector]
     F --> G[(PostgreSQL)]
     G --> F --> E --> C --> A
 ```
+
+All built-ins (including read-only diagnostics such as `explain_plan`, `diagnose_locks`, and `replication_status`) route through the connector manager to the same PostgreSQL connection pool for the selected source.
+
+## Built-in MCP tools
+
+These tools are enabled by default per `[[sources]]` entry unless you whitelist a subset with `[[tools]]` in `dbhub.toml`. With multiple sources, names are suffixed with the source id (for example `execute_sql_prod_pg`).
+
+| Tool | Role |
+|------|------|
+| `execute_sql` | Run SQL (multi-statement supported); optional PII/clinical guard with standards-aware profiles (`hl7v2`, `fhir`, `loinc`, `snomed`) |
+| `search_objects` | Discover schemas, tables, columns, indexes, routines (progressive detail) |
+| `query_insights` | Ranked statements from `pg_stat_statements` when available |
+| `schema_diff` | Compare schema metadata between two configured sources |
+| `explain_plan` | Structured `EXPLAIN (FORMAT JSON, …)` for one read-only statement |
+| `diagnose_locks` | Blocking / waiting sessions from `pg_stat_activity` |
+| `replication_status` | Replication lag, streaming clients, slots |
+| `table_health` | Dead tuples, vacuum/analyze stats, relation sizes |
+| `extensions_status` | Installed extensions and `pg_stat_statements` readiness |
+
+User-defined **`[[tools]]`** entries add custom parameterized SQL tools. See `docs/tools/overview.mdx` and `dbhub.toml.example`.
 
 ## Query Execution State Machine
 
@@ -102,6 +121,12 @@ stateDiagram-v2
 
 ## Related Docs
 
-- `docs/` for user-facing documentation.
-- `dbhub.toml.example` for multi-source configuration examples.
+- [`docs/tools/overview.mdx`](docs/tools/overview.mdx) — all MCP tools and TOML whitelisting.
+- [`docs/tools/execute-sql.mdx`](docs/tools/execute-sql.mdx) — `execute_sql`, read-only mode, PII guard.
+- [`docs/tools/search-objects.mdx`](docs/tools/search-objects.mdx) — `search_objects` patterns and detail levels.
+- [`docs/tools/query-insights.mdx`](docs/tools/query-insights.mdx) — `query_insights` and `pg_stat_statements`.
+- [`docs/tools/schema-diff.mdx`](docs/tools/schema-diff.mdx) — `schema_diff` between two sources.
+- [`docs/tools/custom-tools.mdx`](docs/tools/custom-tools.mdx) — parameterized custom tools.
+- [`dbhub.toml.example`](dbhub.toml.example) — multi-source and tool configuration examples.
+- Mintlify site config: [`docs/docs.json`](docs/docs.json).
 

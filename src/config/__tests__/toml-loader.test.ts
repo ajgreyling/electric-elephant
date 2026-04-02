@@ -134,4 +134,70 @@ allow_access_to_pii_data = "yes"
 
     expect(() => loadTomlConfig()).toThrow("invalid allow_access_to_pii_data");
   });
+
+  it("accepts clinical_standards on execute_sql in [[tools]]", () => {
+    const tomlContent = `
+[[sources]]
+id = "pg"
+dsn = "postgres://user:pass@localhost:5432/app"
+
+[[tools]]
+name = "execute_sql"
+source = "pg"
+clinical_standards = ["hl7v2", "fhir", "loinc", "snomed"]
+`;
+    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
+
+    const result = loadTomlConfig();
+    const executeSql = result?.tools?.find((t) => t.name === "execute_sql") as any;
+    expect(executeSql?.clinical_standards).toEqual(["hl7v2", "fhir", "loinc", "snomed"]);
+  });
+
+  it("rejects clinical_standards on non-execute_sql tools", () => {
+    const tomlContent = `
+[[sources]]
+id = "pg"
+dsn = "postgres://user:pass@localhost:5432/app"
+
+[[tools]]
+name = "search_objects"
+source = "pg"
+clinical_standards = ["hl7v2"]
+`;
+    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
+
+    expect(() => loadTomlConfig()).toThrow(/clinical_standards/);
+  });
+
+  it("rejects empty clinical_standards array on execute_sql", () => {
+    const tomlContent = `
+[[sources]]
+id = "pg"
+dsn = "postgres://user:pass@localhost:5432/app"
+
+[[tools]]
+name = "execute_sql"
+source = "pg"
+clinical_standards = []
+`;
+    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
+
+    expect(() => loadTomlConfig()).toThrow("invalid clinical_standards");
+  });
+
+  it("rejects unknown clinical_standards value on execute_sql", () => {
+    const tomlContent = `
+[[sources]]
+id = "pg"
+dsn = "postgres://user:pass@localhost:5432/app"
+
+[[tools]]
+name = "execute_sql"
+source = "pg"
+clinical_standards = ["hl7v2", "openEHR"]
+`;
+    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
+
+    expect(() => loadTomlConfig()).toThrow("invalid clinical_standards value");
+  });
 });
