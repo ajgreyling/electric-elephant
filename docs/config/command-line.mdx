@@ -30,6 +30,8 @@ Command-line flags are passed when starting Electric Elephant. These have the hi
   | API | ❌ | ✅ `/api/xxx` |
   | Multiple instances | ✅ No port conflicts | Requires different ports |
 
+  **HTTP security note:** when `Origin` is present, Electric Elephant validates that the `Origin` hostname matches the request `Host` hostname. Mismatches are rejected with `403` (DNS rebinding protection), and malformed `Origin` values are rejected with `400`.
+
   ```bash
   # stdio (default) - for Claude Desktop, Claude Code, Cursor
   # No HTTP server started
