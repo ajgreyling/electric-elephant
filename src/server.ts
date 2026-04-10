@@ -28,6 +28,10 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 export const SERVER_NAME = "Electric Elephant MCP Server";
 export const SERVER_VERSION = packageJson.version;
 
+function writeStderrLine(message: string): void {
+  process.stderr.write(`${message}\n`);
+}
+
 /**
  * Generate ASCII art banner with version information
  */
@@ -41,7 +45,7 @@ export function generateBanner(version: string, modes: string[] = []): string {
     " \\___|_|\\___|\\___|\\__|_|  |_|\\___|  \\___|_|\\___| .__/|_| |_|\\__,_|_| |_|\\__|",
     "                                               |_|                          ",
   ].join("\n");
-  return `\n${art}\nv${version}${modeText} - PostgreSQL-Only, Readonly-First MCP Server\n`;
+  return `${art}\nv${version}${modeText} - PostgreSQL-Only, Readonly-First MCP Server`;
 }
 
 /**
@@ -85,7 +89,7 @@ See documentation for more details on configuring database connections.
     const connectorManager = new ConnectorManager();
     const sources = sourceConfigsData.sources;
 
-    console.error(`Configuration source: ${sourceConfigsData.source}`);
+    writeStderrLine(`Configuration source: ${sourceConfigsData.source}`);
 
     // Connect to database(s) — single DSN or multi-source TOML
     await connectorManager.connectWithSources(sources);
@@ -97,7 +101,7 @@ See documentation for more details on configuring database connections.
       sources: sourceConfigsData.sources,
       tools: sourceConfigsData.tools,
     });
-    console.error("Tool registry initialized");
+    writeStderrLine("Tool registry initialized");
 
     // Start watching TOML config file for hot reload (only when using TOML config).
     // In STDIO mode, tool list is registered once — hot reload updates connections and
@@ -141,17 +145,17 @@ See documentation for more details on configuring database connections.
 
     // Output mode information
     if (activeModes.length > 0) {
-      console.error(`Running in ${activeModes.join(' and ')} mode - ${modeDescriptions.join(', ')}`);
+      writeStderrLine(`Running in ${activeModes.join(' and ')} mode - ${modeDescriptions.join(', ')}`);
     }
 
-    console.error(generateBanner(SERVER_VERSION, activeModes));
+    writeStderrLine(generateBanner(SERVER_VERSION, activeModes));
 
     // Print sources and tools table
     const sourceDisplayInfos = buildSourceDisplayInfo(
       sources,
       (sourceId) => getToolsForSource(sourceId).map((t) => t.readonly ? `🔒 ${t.name}` : t.name)
     );
-    console.error(generateStartupTable(sourceDisplayInfos));
+    writeStderrLine(generateStartupTable(sourceDisplayInfos));
 
     // Clean up config watcher when the process is exiting (covers both transports)
     process.on("exit", () => { stopConfigWatcher?.(); });
@@ -236,27 +240,27 @@ See documentation for more details on configuring database connections.
       app.listen(port!, '0.0.0.0', () => {
         // In development mode, suggest using the Vite dev server for hot reloading
         if (process.env.NODE_ENV === 'development') {
-          console.error('Development mode detected!');
-          console.error('   Workbench dev server (with HMR): http://localhost:5173');
-          console.error('   Backend API: http://localhost:8080');
-          console.error('');
+          writeStderrLine('Development mode detected!');
+          writeStderrLine('   Workbench dev server (with HMR): http://localhost:5173');
+          writeStderrLine('   Backend API: http://localhost:8080');
+          writeStderrLine('');
         } else {
-          console.error(`Workbench at http://localhost:${port}/`);
+          writeStderrLine(`Workbench at http://localhost:${port}/`);
         }
-        console.error(`MCP server endpoint at http://localhost:${port}/mcp`);
+        writeStderrLine(`MCP server endpoint at http://localhost:${port}/mcp`);
       });
     } else {
       // STDIO transport: Pure MCP-over-stdio, no HTTP server
       const server = createServer();
       const transport = new StdioServerTransport();
       await server.connect(transport);
-      console.error("MCP server running on stdio");
+      writeStderrLine("MCP server running on stdio");
 
       let isShuttingDown = false;
       const shutdown = async () => {
         if (isShuttingDown) return;
         isShuttingDown = true;
-        console.error("Shutting down...");
+        writeStderrLine("Shutting down...");
         await transport.close();
         await connectorManager.disconnect();
         process.exit(0);

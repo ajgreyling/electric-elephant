@@ -5,6 +5,10 @@ import type { Duplex } from 'stream';
 import type { SSHTunnelConfig, SSHTunnelOptions, SSHTunnelInfo, JumpHost } from '../types/ssh.js';
 import { resolveSymlink, parseJumpHosts } from './ssh-config-parser.js';
 
+function writeStderrLine(message: string): void {
+  process.stderr.write(`${message}\n`);
+}
+
 /**
  * SSH Tunnel implementation for secure database connections.
  * Supports ProxyJump for multi-hop SSH connections through bastion/jump hosts.
@@ -115,7 +119,7 @@ export class SSHTunnel {
         );
 
         // Forward to the next host
-        console.error(`  → Forwarding through ${jumpHost.host}:${jumpHost.port} to ${nextHost.host}:${nextHost.port}`);
+        writeStderrLine(`  → Forwarding through ${jumpHost.host}:${jumpHost.port} to ${nextHost.host}:${nextHost.port}`);
         forwardStream = await this.forwardTo(client, nextHost.host, nextHost.port);
       } catch (error) {
         if (client) {
@@ -208,7 +212,7 @@ export class SSHTunnel {
       const onReady = () => {
         client.removeListener('error', onError);
         const desc = label || `${hostInfo.host}:${hostInfo.port}`;
-        console.error(`SSH connection established: ${desc}`);
+        writeStderrLine(`SSH connection established: ${desc}`);
         resolve(client);
       };
 
@@ -302,7 +306,7 @@ export class SSHTunnel {
           targetPort: options.targetPort,
         };
 
-        console.error(`SSH tunnel established: localhost:${address.port} → ${options.targetHost}:${options.targetPort}`);
+        writeStderrLine(`SSH tunnel established: localhost:${address.port} → ${options.targetHost}:${options.targetPort}`);
         settled = true;
         resolve(this.tunnelInfo);
       });
@@ -319,7 +323,7 @@ export class SSHTunnel {
 
     return new Promise((resolve) => {
       this.cleanup();
-      console.error('SSH tunnel closed');
+      writeStderrLine('SSH tunnel closed');
       resolve();
     });
   }

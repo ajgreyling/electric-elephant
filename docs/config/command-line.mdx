@@ -71,6 +71,16 @@ Command-line flags are passed when starting Electric Elephant. These have the hi
   - `sslmode=require`: TLS without verifying the server certificate.
 </ParamField>
 
+### --schema
+
+<ParamField path="--schema" type="string">
+  **Single-DSN mode only.** Sets PostgreSQL `search_path` for the connection (same as TOML `search_path` on a source): comma-separated schema list, e.g. `my_schema,public`. The first schema is used as the default for unqualified object discovery.
+
+  ```bash
+  npx electric-elephant --dsn "postgres://..." --schema app_schema,public
+  ```
+</ParamField>
+
 **Environment Variables (Alternative to --dsn)**
 
 <ParamField path="DB_*" type="environment">
@@ -180,6 +190,22 @@ npx electric-elephant --dsn "..." --ssh-host mybastion
 - Path expansion for `~/` is supported in file paths.
 </Note>
 
+## Destructive SQL (single-DSN) {#destructive-sql-cli}
+
+By default, **`execute_sql` is read-only** in single-DSN mode (`--dsn` / env without `--config`). To allow `INSERT`, `UPDATE`, `DELETE`, and similar statements, pass **`--allow-destructive-sql`** with no value (bare flag), or **`=true`**, **`=1`**, or **`=yes`** (case-insensitive). Values like `false`, `0`, `no`, or an **empty** `--allow-destructive-sql=` do **not** enable writes.
+
+For TOML and tool-level `readonly`, see [Execute SQL — Read-Only Mode](/tools/execute-sql#read-only-mode).
+
+### --allow-destructive-sql
+
+<ParamField path="--allow-destructive-sql" type="string">
+  **Single-DSN mode only.** Enables mutating SQL on `execute_sql`. Same truthy rules as `--allow-access-to-pii-data`: bare flag or `true` / `1` / `yes`.
+
+  ```bash
+  npx electric-elephant --dsn "postgres://..." --allow-destructive-sql
+  ```
+</ParamField>
+
 ## PII and clinical data guard (execute_sql) {#pii-guard-cli}
 
 Single-DSN mode (`--dsn` / env without `--config`) uses the same default as TOML: **`execute_sql` does not allow PII/clinical-sensitive projections** unless you opt in.
@@ -188,29 +214,19 @@ Single-DSN mode (`--dsn` / env without `--config`) uses the same default as TOML
 
 - **TOML (recommended, including multi-source):** `allow_access_to_pii_data = true` on the `[[tools]]` entry for `execute_sql` — see [TOML — allow_access_to_pii_data](/config/toml#allow_access_to_pii_data).
 - **Environment (single-DSN only):** `ALLOW_ACCESS_TO_PII_DATA=true` (also accepts `1` or `yes`, case-insensitive).
-- **CLI (single-DSN only):** `--allow-access-to-pii-data=true` overrides env when set. A bare `--allow-access-to-pii-data` does **not** enable access.
-- **CLI (debugging, single-DSN only):** `--disable-pii-guard` (bare flag) or `--disable-pii-guard=true` / `=1` / `=yes` has the same effect as `--allow-access-to-pii-data=true`. If both are passed, `--allow-access-to-pii-data` is evaluated first (so `--allow-access-to-pii-data=false` keeps the guard on).
+- **CLI (single-DSN only):** bare **`--allow-access-to-pii-data`** or **`--allow-access-to-pii-data=true`** / `=1` / `=yes` overrides env when set. An empty `--allow-access-to-pii-data=` does not enable access.
 
 For behavior, error code `PII_ACCESS_VIOLATION`, and examples, see [Execute SQL — PII and clinical data guard](/tools/execute-sql#pii-and-clinical-data-guard).
 
 ### --allow-access-to-pii-data
 
 <ParamField path="--allow-access-to-pii-data" type="string" env="ALLOW_ACCESS_TO_PII_DATA">
-  **Single-DSN mode only** (not used with `--config` / TOML). When set to the literal value `true`, allows `execute_sql` to bypass the PII/clinical projection guard. Prefer TOML per-source tool config when using multiple databases.
+  **Single-DSN mode only** (not used with `--config` / TOML). A **bare** flag or value `true`, `1`, or `yes` (case-insensitive) allows `execute_sql` to bypass the PII/clinical projection guard. Prefer TOML per-source tool config when using multiple databases.
 
   ```bash
   ALLOW_ACCESS_TO_PII_DATA=true npx electric-elephant --dsn "postgres://..."
+  npx electric-elephant --dsn "postgres://..." --allow-access-to-pii-data
   npx electric-elephant --dsn "postgres://..." --allow-access-to-pii-data=true
-  ```
-</ParamField>
-
-### --disable-pii-guard
-
-<ParamField path="--disable-pii-guard" type="boolean">
-  **Single-DSN mode only.** Convenience flag for local debugging: a bare `--disable-pii-guard` or `--disable-pii-guard=true` (also `1` / `yes`) allows `execute_sql` to bypass the PII/clinical projection guard, same as `--allow-access-to-pii-data=true`. Use `=false` to leave the flag present but ineffective. Ignored when `--allow-access-to-pii-data` is set (that flag takes precedence).
-
-  ```bash
-  npx electric-elephant --dsn "postgres://..." --disable-pii-guard
   ```
 </ParamField>
 
@@ -222,8 +238,9 @@ For behavior, error code `PII_ACCESS_VIOLATION`, and examples, see [Execute SQL 
 | `--port` | `PORT` | number | HTTP server port (http transport only, default: `8080`) |
 | `--id` | `ID` | string | Instance identifier for tool names |
 | `--config` | - | string | Path to TOML config file (default: `./dbhub.toml`) |
-| `--allow-access-to-pii-data` | `ALLOW_ACCESS_TO_PII_DATA` | string | Single-DSN only: must be `=true` to allow sensitive projections on `execute_sql` |
-| `--disable-pii-guard` | - | boolean | Single-DSN only: debug alias for allowing sensitive projections (bare or `=true` / `1` / `yes`) |
+| `--schema` | - | string | Single-DSN only: PostgreSQL `search_path` (comma-separated schemas) |
+| `--allow-destructive-sql` | - | string | Single-DSN only: bare or `true` / `1` / `yes` allows mutating SQL on `execute_sql` |
+| `--allow-access-to-pii-data` | `ALLOW_ACCESS_TO_PII_DATA` | string | Single-DSN only: bare or `true` / `1` / `yes` allows sensitive projections on `execute_sql` |
 | `--dsn` | `DSN` | string | PostgreSQL connection string (required unless using `--config` or `DB_*` env vars) |
 | - | `DB_TYPE` | string | Must be `postgres` when set |
 | - | `DB_HOST` | string | Database hostname |

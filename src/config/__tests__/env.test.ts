@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as envModule from "../env.js";
 
-const { buildDSNFromEnvParams, resolveDSN, resolveSourceConfigs, allowDestructiveSql } = envModule;
+const {
+  buildDSNFromEnvParams,
+  resolveDSN,
+  resolveSourceConfigs,
+  allowDestructiveSql,
+  parseCommandLineArgs,
+} = envModule;
 
 vi.mock("../toml-loader.js", () => ({
   loadTomlConfig: vi.fn(() => null),
@@ -96,6 +102,31 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     expect(executeSql && "allow_access_to_pii_data" in executeSql ? executeSql.allow_access_to_pii_data : undefined).toBeUndefined();
   });
 
+  it("exits with code 1 when an unknown CLI flag is passed", () => {
+    const exitMock = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+    const stderrMock = vi.spyOn(console, "error").mockImplementation(() => {});
+    process.argv = ["node", "script.js", "--dsn=postgres://u:p@localhost:5432/db", "--not-a-known-flag"];
+
+    parseCommandLineArgs();
+
+    expect(exitMock).toHaveBeenCalledWith(1);
+    expect(stderrMock.mock.calls.some((c) => String(c[0]).includes("Unknown command-line flag(s)"))).toBe(true);
+    exitMock.mockRestore();
+    stderrMock.mockRestore();
+  });
+
+  it("sets source search_path from --schema in single-DSN mode", async () => {
+    process.argv = [
+      "node",
+      "script.js",
+      "--dsn=postgres://u:p@localhost:5432/db",
+      "--schema=my_schema,public",
+    ];
+
+    const result = await resolveSourceConfigs();
+    expect(result?.sources[0]?.search_path).toBe("my_schema,public");
+  });
+
   it("sets execute_sql readonly=false with bare --allow-destructive-sql in single-DSN mode", async () => {
     process.argv = [
       "node",
@@ -107,6 +138,19 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     const result = await resolveSourceConfigs();
     const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
     expect(executeSql).toMatchObject({ readonly: false });
+  });
+
+  it("keeps execute_sql readonly when --allow-destructive-sql= (empty value)", async () => {
+    process.argv = [
+      "node",
+      "script.js",
+      "--dsn=postgres://u:p@localhost:5432/db",
+      "--allow-destructive-sql=",
+    ];
+
+    const result = await resolveSourceConfigs();
+    const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
+    expect(executeSql).toMatchObject({ readonly: true });
   });
 
   it("sets allow_access_to_pii_data when ALLOW_ACCESS_TO_PII_DATA is true", async () => {
@@ -132,22 +176,20 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     expect(executeSql).toMatchObject({ allow_access_to_pii_data: true });
   });
 
-  it("does not enable PII access for bare --allow-access-to-pii-data", async () => {
+  it("sets allow_access_to_pii_data with bare --allow-access-to-pii-data", async () => {
     process.argv = ["node", "script.js", "--dsn=postgres://u:p@localhost:5432/db", "--allow-access-to-pii-data"];
 
     const result = await resolveSourceConfigs();
     const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
-    expect(
-      executeSql && "allow_access_to_pii_data" in executeSql ? executeSql.allow_access_to_pii_data : undefined
-    ).toBeUndefined();
+    expect(executeSql).toMatchObject({ allow_access_to_pii_data: true });
   });
 
-  it("sets allow_access_to_pii_data with bare --disable-pii-guard (debug)", async () => {
+  it("sets allow_access_to_pii_data with --allow-access-to-pii-data=1", async () => {
     process.argv = [
       "node",
       "script.js",
       "--dsn=postgres://u:p@localhost:5432/db",
-      "--disable-pii-guard",
+      "--allow-access-to-pii-data=1",
     ];
 
     const result = await resolveSourceConfigs();
@@ -155,25 +197,12 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     expect(executeSql).toMatchObject({ allow_access_to_pii_data: true });
   });
 
-  it("sets allow_access_to_pii_data with --disable-pii-guard=true", async () => {
+  it("does not enable PII access for --allow-access-to-pii-data= (empty value)", async () => {
     process.argv = [
       "node",
       "script.js",
       "--dsn=postgres://u:p@localhost:5432/db",
-      "--disable-pii-guard=true",
-    ];
-
-    const result = await resolveSourceConfigs();
-    const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
-    expect(executeSql).toMatchObject({ allow_access_to_pii_data: true });
-  });
-
-  it("does not enable PII access when --disable-pii-guard=false", async () => {
-    process.argv = [
-      "node",
-      "script.js",
-      "--dsn=postgres://u:p@localhost:5432/db",
-      "--disable-pii-guard=false",
+      "--allow-access-to-pii-data=",
     ];
 
     const result = await resolveSourceConfigs();
@@ -183,13 +212,12 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     ).toBeUndefined();
   });
 
-  it("prefers explicit --allow-access-to-pii-data=false over --disable-pii-guard", async () => {
+  it("does not enable PII access when --allow-access-to-pii-data=false", async () => {
     process.argv = [
       "node",
       "script.js",
       "--dsn=postgres://u:p@localhost:5432/db",
       "--allow-access-to-pii-data=false",
-      "--disable-pii-guard",
     ];
 
     const result = await resolveSourceConfigs();
@@ -199,68 +227,14 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     ).toBeUndefined();
   });
 
-  it("sets allow_access_to_pii_data with --disable-pii-guard=1", async () => {
+  it("enables PII access via --allow-access-to-pii-data when ALLOW_ACCESS_TO_PII_DATA is false", async () => {
     process.argv = [
       "node",
       "script.js",
       "--dsn=postgres://u:p@localhost:5432/db",
-      "--disable-pii-guard=1",
-    ];
-
-    const result = await resolveSourceConfigs();
-    const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
-    expect(executeSql).toMatchObject({ allow_access_to_pii_data: true });
-  });
-
-  it("sets allow_access_to_pii_data with --disable-pii-guard=yes (case-insensitive)", async () => {
-    process.argv = [
-      "node",
-      "script.js",
-      "--dsn=postgres://u:p@localhost:5432/db",
-      "--disable-pii-guard=YES",
-    ];
-
-    const result = await resolveSourceConfigs();
-    const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
-    expect(executeSql).toMatchObject({ allow_access_to_pii_data: true });
-  });
-
-  it("sets allow_access_to_pii_data when --disable-pii-guard is followed by yes as separate argv token", async () => {
-    process.argv = [
-      "node",
-      "script.js",
-      "--dsn=postgres://u:p@localhost:5432/db",
-      "--disable-pii-guard",
-      "yes",
-    ];
-
-    const result = await resolveSourceConfigs();
-    const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
-    expect(executeSql).toMatchObject({ allow_access_to_pii_data: true });
-  });
-
-  it("enables PII access via --disable-pii-guard when ALLOW_ACCESS_TO_PII_DATA is false", async () => {
-    process.argv = [
-      "node",
-      "script.js",
-      "--dsn=postgres://u:p@localhost:5432/db",
-      "--disable-pii-guard",
+      "--allow-access-to-pii-data",
     ];
     process.env.ALLOW_ACCESS_TO_PII_DATA = "false";
-
-    const result = await resolveSourceConfigs();
-    const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
-    expect(executeSql).toMatchObject({ allow_access_to_pii_data: true });
-  });
-
-  it("keeps PII access on when --allow-access-to-pii-data=true despite --disable-pii-guard=false", async () => {
-    process.argv = [
-      "node",
-      "script.js",
-      "--dsn=postgres://u:p@localhost:5432/db",
-      "--allow-access-to-pii-data=true",
-      "--disable-pii-guard=false",
-    ];
 
     const result = await resolveSourceConfigs();
     const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
@@ -277,13 +251,18 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
       expect(envModule.allowAccessToPiiDataFromEnvCli()).toBe(true);
     });
 
-    it("returns true for bare --disable-pii-guard", () => {
-      process.argv = ["node", "script.js", "--disable-pii-guard"];
+    it("returns true for bare --allow-access-to-pii-data", () => {
+      process.argv = ["node", "script.js", "--allow-access-to-pii-data"];
       expect(envModule.allowAccessToPiiDataFromEnvCli()).toBe(true);
     });
 
-    it("returns false for --disable-pii-guard=0", () => {
-      process.argv = ["node", "script.js", "--disable-pii-guard=0"];
+    it("returns false for --allow-access-to-pii-data=0", () => {
+      process.argv = ["node", "script.js", "--allow-access-to-pii-data=0"];
+      expect(envModule.allowAccessToPiiDataFromEnvCli()).toBe(false);
+    });
+
+    it("returns false for --allow-access-to-pii-data= (empty)", () => {
+      process.argv = ["node", "script.js", "--allow-access-to-pii-data="];
       expect(envModule.allowAccessToPiiDataFromEnvCli()).toBe(false);
     });
   });
@@ -297,6 +276,21 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     it("enables destructive SQL for --allow-destructive-sql=yes", () => {
       process.argv = ["node", "script.js", "--allow-destructive-sql=yes"];
       expect(allowDestructiveSql()).toBe(true);
+    });
+
+    it("enables destructive SQL for --allow-destructive-sql=1", () => {
+      process.argv = ["node", "script.js", "--allow-destructive-sql=1"];
+      expect(allowDestructiveSql()).toBe(true);
+    });
+
+    it("keeps destructive SQL disabled for --allow-destructive-sql= (empty)", () => {
+      process.argv = ["node", "script.js", "--allow-destructive-sql="];
+      expect(allowDestructiveSql()).toBe(false);
+    });
+
+    it("keeps destructive SQL disabled for --allow-destructive-sql=false", () => {
+      process.argv = ["node", "script.js", "--allow-destructive-sql=false"];
+      expect(allowDestructiveSql()).toBe(false);
     });
 
     it("keeps destructive SQL disabled when flag is absent", () => {

@@ -14,6 +14,56 @@ import { SafeURL } from "../utils/safe-url.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function writeStderrLine(message: string): void {
+  process.stderr.write(`${message}\n`);
+}
+
+/** Every `--name` flag the server recognizes. Unknown flags exit the process with an error. */
+export const KNOWN_CLI_FLAGS = new Set([
+  "allow-access-to-pii-data",
+  "allow-destructive-sql",
+  "config",
+  "demo",
+  "dsn",
+  "id",
+  "port",
+  "schema",
+  "transport",
+  "ssh-host",
+  "ssh-port",
+  "ssh-user",
+  "ssh-password",
+  "ssh-key",
+  "ssh-passphrase",
+  "ssh-proxy-jump",
+  "ssh-keepalive-interval",
+  "ssh-keepalive-count-max",
+]);
+
+function exitOnUnknownCliFlags(parsed: Record<string, string>): void {
+  const unknown: string[] = [];
+  for (const key of Object.keys(parsed)) {
+    if (!KNOWN_CLI_FLAGS.has(key)) {
+      unknown.push(key);
+    }
+  }
+  if (unknown.length === 0) {
+    return;
+  }
+  unknown.sort();
+  const knownSorted = [...KNOWN_CLI_FLAGS].sort();
+  console.error("\nERROR: Unknown command-line flag(s):");
+  for (const k of unknown) {
+    console.error(`  --${k}`);
+  }
+  console.error("\nAllowed flags:");
+  for (const k of knownSorted) {
+    console.error(`  --${k}`);
+  }
+  console.error("\nSee docs/config/command-line.mdx for details.\n");
+  process.exit(1);
+}
+
 // Parse command line arguments
 export function parseCommandLineArgs() {
   // Check if any args start with '--' (the way tsx passes them)
@@ -55,26 +105,21 @@ export function parseCommandLineArgs() {
         process.exit(1);
       }
 
-      const value = parts.length > 1 ? parts.slice(1).join("=") : undefined;
-      if (value) {
-        // Handle --key=value format
-        parsedManually[key] = value;
+      // `--key=value` (value may be empty, e.g. `--opt=`) must not fall through to bare-flag `true`.
+      if (parts.length > 1) {
+        parsedManually[key] = parts.slice(1).join("=");
       } else if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
         // Handle --key value format
         parsedManually[key] = args[i + 1];
         i++; // Skip the next argument as it's the value
       } else {
-        // Handle --key format (boolean flag).
-        // Keep PII access opt-in strict: bare --allow-access-to-pii-data does not enable it.
-        if (key === "allow-access-to-pii-data") {
-          parsedManually[key] = "";
-        } else {
-          parsedManually[key] = "true";
-        }
+        // Bare --key → opt-in true (e.g. --allow-destructive-sql, --allow-access-to-pii-data)
+        parsedManually[key] = "true";
       }
     }
   }
 
+  exitOnUnknownCliFlags(parsedManually);
   // Just use the manually parsed args - removed parseArgs dependency for Node.js <18.3.0 compatibility
   return parsedManually;
 }
@@ -104,7 +149,7 @@ export function loadEnvFiles(): string | null {
 
   // Try to load the first env file found from the prioritized locations
   for (const envPath of envPaths) {
-    console.error(`Checking for env file: ${envPath}`);
+    writeStderrLine(`Checking for env file: ${envPath}`);
     if (fs.existsSync(envPath)) {
       dotenv.config({ path: envPath });
 
@@ -146,37 +191,36 @@ export function loadEnvFiles(): string | null {
 }
 
 /**
- * Whether destructive SQL (INSERT/UPDATE/DELETE/MERGE etc.) is allowed.
- * When false (default), the server runs in read-only mode; only SELECT and other read-only SQL is allowed.
- * Pass --allow-destructive-sql (or =true / =1 / =yes) to allow write/delete/update/merge commands.
+ * True when a CLI flag value means "enable" (bare flags are parsed as "true").
+ * Accepts true, 1, yes (case-insensitive). Empty string and false/0/no are not enabling.
  */
-export function allowDestructiveSql(): boolean {
-  const args = parseCommandLineArgs();
-  const value = args["allow-destructive-sql"];
-  if (value === undefined) {
+function cliBooleanOptIn(raw: string | undefined): boolean {
+  if (raw === undefined) {
     return false;
   }
-
-  const normalized = value.trim().toLowerCase();
+  const normalized = raw.trim().toLowerCase();
   return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+/**
+ * Whether destructive SQL (INSERT/UPDATE/DELETE/MERGE etc.) is allowed.
+ * When false (default), the server runs in read-only mode; only SELECT and other read-only SQL is allowed.
+ * Pass bare `--allow-destructive-sql` or `--allow-destructive-sql=true` / `=1` / `=yes` to allow writes.
+ */
+export function allowDestructiveSql(): boolean {
+  return cliBooleanOptIn(parseCommandLineArgs()["allow-destructive-sql"]);
 }
 
 /**
  * Whether execute_sql may return columns that match PII / sensitive clinical heuristics.
  * When false (default), those queries are blocked unless overridden per TOML [[tools]].
- * Single-DSN mode: CLI `--allow-access-to-pii-data=true` or env `ALLOW_ACCESS_TO_PII_DATA` (true/1/yes).
- * Bare `--allow-access-to-pii-data` does not enable access; use explicit =true.
- * For local debugging, `--disable-pii-guard` (or `=true` / `=1` / `=yes`) opts in the same way;
- * `--allow-access-to-pii-data` wins when both are set.
+ * Single-DSN mode: bare `--allow-access-to-pii-data` or `--allow-access-to-pii-data=true` / `=1` / `=yes`,
+ * or env `ALLOW_ACCESS_TO_PII_DATA` (true/1/yes). CLI overrides env when set.
  */
 export function allowAccessToPiiDataFromEnvCli(): boolean {
   const args = parseCommandLineArgs();
   if (args["allow-access-to-pii-data"] !== undefined) {
-    return args["allow-access-to-pii-data"] === "true";
-  }
-  if (args["disable-pii-guard"] !== undefined) {
-    const v = args["disable-pii-guard"].trim().toLowerCase();
-    return v === "true" || v === "1" || v === "yes";
+    return cliBooleanOptIn(args["allow-access-to-pii-data"]);
   }
   const raw = process.env.ALLOW_ACCESS_TO_PII_DATA;
   if (raw === undefined) {
@@ -422,7 +466,7 @@ export function resolveSSHConfig(): { config: SSHTunnelConfig; source: string } 
   if (sshConfigHost && looksLikeSSHAlias(sshConfigHost)) {
     // Try to parse SSH config for this host, default to ~/.ssh/config
     const sshConfigPath = getDefaultSSHConfigPath();
-    console.error(`Attempting to parse SSH config for host '${sshConfigHost}' from: ${sshConfigPath}`);
+    writeStderrLine(`Attempting to parse SSH config for host '${sshConfigHost}' from: ${sshConfigPath}`);
     const sshConfigData = parseSSHConfig(sshConfigHost, sshConfigPath);
     if (sshConfigData) {
       // Use SSH config as base, but allow command line/env to override
@@ -605,6 +649,10 @@ export async function resolveSourceConfigs(): Promise<{
       type: dbType,
       dsn: dsnResult.dsn,
     };
+
+    if (args.schema !== undefined && args.schema.trim() !== "") {
+      source.search_path = args.schema.trim();
+    }
 
     // Parse DSN to populate connection info fields for API responses
     const connectionInfo = parseConnectionInfoFromDSN(dsnResult.dsn);

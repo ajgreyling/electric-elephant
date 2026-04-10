@@ -13,6 +13,10 @@ import { parseSSHConfig, looksLikeSSHAlias, getDefaultSSHConfigPath } from "../u
 let managerInstance: ConnectorManager | null = null;
 const AWS_IAM_TOKEN_REFRESH_MS = 14 * 60 * 1000; // refresh before 15-minute token expiry
 
+function writeStderrLine(message: string): void {
+  process.stderr.write(`${message}\n`);
+}
+
 /**
  * Manages database connectors and provides a unified interface to work with them
  * Now supports multiple database connections with unique IDs
@@ -49,7 +53,7 @@ export class ConnectorManager {
     const lazySources = sources.filter(s => s.lazy);
 
     if (eagerSources.length > 0) {
-      console.error(`Connecting to ${eagerSources.length} database source(s)...`);
+      writeStderrLine(`Connecting to ${eagerSources.length} database source(s)...`);
     }
 
     // Connect to eager sources immediately
@@ -71,7 +75,7 @@ export class ConnectorManager {
     const sourceId = source.id;
     const dsn = buildDSNFromSource(source);
 
-    console.error(`  - ${sourceId}: ${redactDSN(dsn)} (lazy, will connect on first use)`);
+    writeStderrLine(`  - ${sourceId}: ${redactDSN(dsn)} (lazy, will connect on first use)`);
 
     // Store config for later connection
     this.lazySources.set(sourceId, source);
@@ -112,7 +116,7 @@ export class ConnectorManager {
     // Start connection and track the promise
     const connectionPromise = (async () => {
       try {
-        console.error(`Lazy connecting to source '${id}'...`);
+        writeStderrLine(`Lazy connecting to source '${id}'...`);
         await this.connectSource(lazySource);
         // Remove from lazy sources after successful connection
         this.lazySources.delete(id);
@@ -143,7 +147,7 @@ export class ConnectorManager {
     const sourceId = source.id;
     // Build DSN from source config
     const dsn = await this.buildConnectionDSN(source);
-    console.error(`  - ${sourceId}: ${redactDSN(dsn)}`);
+    writeStderrLine(`  - ${sourceId}: ${redactDSN(dsn)}`);
 
     // Setup SSH tunnel if needed
     let actualDSN = dsn;
@@ -152,7 +156,7 @@ export class ConnectorManager {
       let resolvedSSHConfig: SSHTunnelConfig | null = null;
       if (looksLikeSSHAlias(source.ssh_host)) {
         const sshConfigPath = getDefaultSSHConfigPath();
-        console.error(`  Resolving SSH config for host '${source.ssh_host}' from: ${sshConfigPath}`);
+        writeStderrLine(`  Resolving SSH config for host '${source.ssh_host}' from: ${sshConfigPath}`);
         resolvedSSHConfig = parseSSHConfig(source.ssh_host, sshConfigPath);
       }
 
@@ -204,9 +208,7 @@ export class ConnectorManager {
       // Store tunnel for later cleanup
       this.sshTunnels.set(sourceId, tunnel);
 
-      console.error(
-        `  SSH tunnel established through localhost:${tunnelInfo.localPort}`
-      );
+      writeStderrLine(`  SSH tunnel established through localhost:${tunnelInfo.localPort}`);
     }
 
     // Find connector prototype for this DSN
@@ -277,7 +279,7 @@ export class ConnectorManager {
     for (const [sourceId, connector] of this.connectors.entries()) {
       try {
         await connector.disconnect();
-        console.error(`Disconnected from source '${sourceId || "(default)"}'`);
+        writeStderrLine(`Disconnected from source '${sourceId || "(default)"}'`);
       } catch (error) {
         console.error(`Error disconnecting from source '${sourceId}':`, error);
       }
@@ -458,7 +460,7 @@ export class ConnectorManager {
       return;
     }
 
-    console.error(`Refreshing AWS IAM auth connection for source '${sourceId}'...`);
+    writeStderrLine(`Refreshing AWS IAM auth connection for source '${sourceId}'...`);
 
     const existingConnector = this.connectors.get(sourceId);
     if (existingConnector) {

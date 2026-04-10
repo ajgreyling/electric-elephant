@@ -6,6 +6,8 @@
 
 Electric Elephant is a token-efficient MCP server for exploring and querying **PostgreSQL** from MCP-capable clients. It is **not** a generic SQL bridge: only PostgreSQL is supported (not MySQL, SQLite, SQL Server, Oracle, or other engines).
 
+**PII and clinical data:** The server **attempts to mitigate** accidental exposure of personally identifiable information and sensitive clinical-style fields through `execute_sql` (heuristic, fail-closed checks on projections before queries run). That is a **best-effort safeguard**, not certification or a substitute for database permissions, row-level security, legal review, or your own data policies. See the Purpose bullet and [`docs/tools/execute-sql.mdx`](docs/tools/execute-sql.mdx).
+
 Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyling/electric-elephant)
 
 ## Purpose
@@ -13,7 +15,7 @@ Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyl
 - Expose PostgreSQL through MCP tools (`execute_sql`, `search_objects`, `query_insights`, `schema_diff`, observability helpers, and related wiring).
 - PostgreSQL-only: no connectors or compatibility layers for other SQL databases.
 - Provide safe defaults (read-only unless explicitly enabled for destructive SQL).
-- Heuristic PII/clinical guard on `execute_sql` (wildcards and sensitive-looking columns blocked unless explicitly opted in). Opt-in: TOML `allow_access_to_pii_data` on `execute_sql`, env `ALLOW_ACCESS_TO_PII_DATA`, CLI `--allow-access-to-pii-data=true`, or **for local debugging** bare `--disable-pii-guard` (or `=true` / `1` / `yes`; single-DSN mode only). Covers HL7v2/FHIR/LOINC/SNOMED-style clinical identifiers. See `docs/tools/execute-sql.mdx`, `docs/config/command-line.mdx`, and `CLAUDE.md`.
+- **Mitigate PII / clinical leakage (best effort):** heuristic guard on `execute_sql` blocks wildcard projections and many sensitive-looking column names unless explicitly opted in (name-based heuristics can false positive or false negative). Opt-in: TOML `allow_access_to_pii_data`, env `ALLOW_ACCESS_TO_PII_DATA`, or single-DSN CLI **bare** `--allow-access-to-pii-data` (or `=true` / `1` / `yes`). **Destructive SQL** in single-DSN mode: same pattern with **`--allow-destructive-sql`**. Clinical naming profiles include HL7v2/FHIR/LOINC/SNOMED-style identifiers. See `docs/tools/execute-sql.mdx`, `docs/config/command-line.mdx`, and `CLAUDE.md`.
 
 ## Repository Landmarks
 
@@ -60,7 +62,7 @@ These tools are enabled by default per `[[sources]]` entry unless you whitelist 
 
 | Tool | Role |
 |------|------|
-| `execute_sql` | Run SQL (multi-statement supported); PII/clinical guard on by default (opt out via TOML/env/CLI; debug: `--disable-pii-guard` in single-DSN mode); standards-aware profiles (`hl7v2`, `fhir`, `loinc`, `snomed`) |
+| `execute_sql` | Run SQL (multi-statement supported); **attempts to mitigate** PII/clinical exposure via default guard (opt out via TOML/env/CLI `--allow-access-to-pii-data` in single-DSN mode); standards-aware profiles (`hl7v2`, `fhir`, `loinc`, `snomed`) |
 | `search_objects` | Discover schemas, tables, columns, indexes, routines (progressive detail) |
 | `query_insights` | Ranked statements from `pg_stat_statements` when available |
 | `schema_diff` | Compare schema metadata between two configured sources |
@@ -98,7 +100,7 @@ stateDiagram-v2
 
 ## Tool Schema Examples
 
-`execute_sql` input (list explicit columns; `SELECT *` may be rejected while the PII guard is active—disable only with explicit policy: TOML, `ALLOW_ACCESS_TO_PII_DATA`, `--allow-access-to-pii-data=true`, or `--disable-pii-guard` for debugging):
+`execute_sql` input (list explicit columns; `SELECT *` may be rejected while the PII guard is active—disable only with explicit policy: TOML, `ALLOW_ACCESS_TO_PII_DATA`, or bare `--allow-access-to-pii-data`):
 
 ```json
 {
@@ -123,7 +125,7 @@ stateDiagram-v2
 
 - [`docs/tools/overview.mdx`](docs/tools/overview.mdx) — all MCP tools and TOML whitelisting.
 - [`docs/tools/execute-sql.mdx`](docs/tools/execute-sql.mdx) — `execute_sql`, read-only mode, PII guard.
-- [`docs/config/command-line.mdx`](docs/config/command-line.mdx) — CLI flags including `--disable-pii-guard` and `--allow-access-to-pii-data` (single-DSN).
+- [`docs/config/command-line.mdx`](docs/config/command-line.mdx) — CLI flags including `--allow-access-to-pii-data` (single-DSN).
 - [`docs/tools/search-objects.mdx`](docs/tools/search-objects.mdx) — `search_objects` patterns and detail levels.
 - [`docs/tools/query-insights.mdx`](docs/tools/query-insights.mdx) — `query_insights` and `pg_stat_statements`.
 - [`docs/tools/schema-diff.mdx`](docs/tools/schema-diff.mdx) — `schema_diff` between two sources.

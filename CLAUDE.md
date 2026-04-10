@@ -60,7 +60,7 @@ Key architectural patterns:
   - Tests in `src/__tests__/json-rpc-integration.test.ts`
 - **Tool Handlers**: Clean separation of MCP protocol concerns
   - Tools accept optional `source_id` parameter for multi-source PostgreSQL routing
-- **PII / clinical column guard (`execute_sql`)**: Unless `allow_access_to_pii_data` is explicitly true (TOML per tool, or single-DSN `--allow-access-to-pii-data=true` / `ALLOW_ACCESS_TO_PII_DATA`), the server blocks wildcard projections (`*`, `table.*`) and SELECT/RETURNING items that match PII or sensitive clinical heuristics. Guard profiles are standards-aware via optional `clinical_standards = ["hl7v2","fhir","loinc","snomed"]` on the `execute_sql` tool (default: all standards enabled). This covers HL7/LIS-oriented field names (for example `hl7messagecontrolid`, `elzId`, `orderID`, `barcode`, `batchbarcode`, `testtype_fields`, `resultForAction`) and FHIR/LOINC/SNOMED-style projections. Violations return structured errors with code `PII_ACCESS_VIOLATION`. Logic lives in `src/utils/pii-sql-guard.ts` and `src/utils/pii-heuristics.ts`, wired from `src/tools/execute-sql.ts`.
+- **PII / clinical column guard (`execute_sql`)**: Unless `allow_access_to_pii_data` is explicitly true (TOML per tool, or single-DSN bare `--allow-access-to-pii-data` / `ALLOW_ACCESS_TO_PII_DATA` with true/1/yes), the server blocks wildcard projections (`*`, `table.*`) and SELECT/RETURNING items that match PII or sensitive clinical heuristics. Guard profiles are standards-aware via optional `clinical_standards = ["hl7v2","fhir","loinc","snomed"]` on the `execute_sql` tool (default: all standards enabled). This covers HL7/LIS-oriented field names (for example `hl7messagecontrolid`, `elzId`, `orderID`, `barcode`, `batchbarcode`, `testtype_fields`, `resultForAction`) and FHIR/LOINC/SNOMED-style projections. Violations return structured errors with code `PII_ACCESS_VIOLATION`. Logic lives in `src/utils/pii-sql-guard.ts` and `src/utils/pii-heuristics.ts`, wired from `src/tools/execute-sql.ts`.
 - **Token-Efficient Schema Exploration**: Unified search/list tool with progressive disclosure
   - `search_objects`: Single tool for both pattern-based search and listing all objects
   - Pattern parameter defaults to `%` (match all) - optional for listing use cases
@@ -126,14 +126,15 @@ Electric Elephant supports three configuration methods (in priority order):
 - SSH tunnel via environment: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PASSWORD`, `SSH_KEY`, `SSH_PASSPHRASE`
 
 ### 3. Command-Line Arguments (Single PostgreSQL Database, Highest Priority)
+- **Unknown `--flags` exit with an error** (whitelist `KNOWN_CLI_FLAGS` in `src/config/env.ts`; add new flags there when implementing them).
 - `--dsn`: PostgreSQL connection string
+- `--schema`: Single-DSN `search_path` (comma-separated schemas), same as TOML `search_path`
 - `--transport`: `stdio` (default) or `http` for streamable HTTP transport (endpoint: `/mcp`)
 - `--port`: HTTP server port (default: 8080)
 - `--config`: Path to TOML configuration file
-- `--allow-destructive-sql`: Allow INSERT/UPDATE/DELETE etc. (single-DSN mode only; without this, server defaults to read-only)
-- `--allow-access-to-pii-data=true`: Allow `execute_sql` to run queries that would otherwise be blocked by the PII/clinical guard (single-DSN mode only; bare flag is ignored; TOML `allow_access_to_pii_data` is preferred for multi-source)
-- `--disable-pii-guard`: Debug alias for the same opt-in (bare flag or `=true` / `1` / `yes`; `--allow-access-to-pii-data` wins when both are set)
-- Environment (single-DSN): `ALLOW_ACCESS_TO_PII_DATA` (true/1/yes) — same effect as the CLI flag when true
+- `--allow-destructive-sql`: Allow INSERT/UPDATE/DELETE etc. (single-DSN mode only; bare flag or `=true` / `1` / `yes`; without this, server defaults to read-only)
+- `--allow-access-to-pii-data`: Allow `execute_sql` past the PII/clinical guard (single-DSN only; bare flag or `=true` / `1` / `yes`; TOML `allow_access_to_pii_data` is preferred for multi-source)
+- Environment (single-DSN): `ALLOW_ACCESS_TO_PII_DATA` (true/1/yes) — same PII opt-in as CLI when enabling
 - `--max-rows`: Limit rows returned from SELECT queries (deprecated - use TOML configuration instead)
 - SSH tunnel options: `--ssh-host`, `--ssh-port`, `--ssh-user`, `--ssh-password`, `--ssh-key`, `--ssh-passphrase`
 - Documentation: https://dbhub.ai/config/command-line
