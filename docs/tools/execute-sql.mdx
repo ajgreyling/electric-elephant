@@ -192,7 +192,7 @@ source = "production"
 allow_access_to_pii_data = true
 ```
 
-**Configuration:** [TOML](/config/toml#allow_access_to_pii_data) `allow_access_to_pii_data`, or in single-DSN mode `ALLOW_ACCESS_TO_PII_DATA` / `--allow-access-to-pii-data=true` (see [command-line](/config/command-line#pii-guard-cli)). HTTP API responses list the effective value per source under each tool object as `allow_access_to_pii_data`.
+**Configuration:** [TOML](/config/toml#allow_access_to_pii_data) `allow_access_to_pii_data`, or in single-DSN mode `ALLOW_ACCESS_TO_PII_DATA` / `--allow-access-to-pii-data=true` / `--disable-pii-guard` for debugging (see [command-line](/config/command-line#pii-guard-cli)). HTTP API responses list the effective value per source under each tool object as `allow_access_to_pii_data`.
 
 ## Selective Tool Exposure
 

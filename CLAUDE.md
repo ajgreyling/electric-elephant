@@ -132,6 +132,7 @@ Electric Elephant supports three configuration methods (in priority order):
 - `--config`: Path to TOML configuration file
 - `--allow-destructive-sql`: Allow INSERT/UPDATE/DELETE etc. (single-DSN mode only; without this, server defaults to read-only)
 - `--allow-access-to-pii-data=true`: Allow `execute_sql` to run queries that would otherwise be blocked by the PII/clinical guard (single-DSN mode only; bare flag is ignored; TOML `allow_access_to_pii_data` is preferred for multi-source)
+- `--disable-pii-guard`: Debug alias for the same opt-in (bare flag or `=true` / `1` / `yes`; `--allow-access-to-pii-data` wins when both are set)
 - Environment (single-DSN): `ALLOW_ACCESS_TO_PII_DATA` (true/1/yes) — same effect as the CLI flag when true
 - `--max-rows`: Limit rows returned from SELECT queries (deprecated - use TOML configuration instead)
 - SSH tunnel options: `--ssh-host`, `--ssh-port`, `--ssh-user`, `--ssh-password`, `--ssh-key`, `--ssh-passphrase`

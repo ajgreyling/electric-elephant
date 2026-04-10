@@ -13,7 +13,7 @@ Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyl
 - Expose PostgreSQL through MCP tools (`execute_sql`, `search_objects`, `query_insights`, `schema_diff`, observability helpers, and related wiring).
 - PostgreSQL-only: no connectors or compatibility layers for other SQL databases.
 - Provide safe defaults (read-only unless explicitly enabled for destructive SQL).
-- Heuristic PII/clinical guard on `execute_sql` (wildcards and sensitive-looking columns blocked unless explicitly opted in via TOML, env, or CLI — including HL7v2/FHIR/LOINC/SNOMED-style clinical identifiers; see `docs/tools/execute-sql.mdx` and `CLAUDE.md`).
+- Heuristic PII/clinical guard on `execute_sql` (wildcards and sensitive-looking columns blocked unless explicitly opted in). Opt-in: TOML `allow_access_to_pii_data` on `execute_sql`, env `ALLOW_ACCESS_TO_PII_DATA`, CLI `--allow-access-to-pii-data=true`, or **for local debugging** bare `--disable-pii-guard` (or `=true` / `1` / `yes`; single-DSN mode only). Covers HL7v2/FHIR/LOINC/SNOMED-style clinical identifiers. See `docs/tools/execute-sql.mdx`, `docs/config/command-line.mdx`, and `CLAUDE.md`.
 
 ## Repository Landmarks
 
@@ -60,7 +60,7 @@ These tools are enabled by default per `[[sources]]` entry unless you whitelist 
 
 | Tool | Role |
 |------|------|
-| `execute_sql` | Run SQL (multi-statement supported); optional PII/clinical guard with standards-aware profiles (`hl7v2`, `fhir`, `loinc`, `snomed`) |
+| `execute_sql` | Run SQL (multi-statement supported); PII/clinical guard on by default (opt out via TOML/env/CLI; debug: `--disable-pii-guard` in single-DSN mode); standards-aware profiles (`hl7v2`, `fhir`, `loinc`, `snomed`) |
 | `search_objects` | Discover schemas, tables, columns, indexes, routines (progressive detail) |
 | `query_insights` | Ranked statements from `pg_stat_statements` when available |
 | `schema_diff` | Compare schema metadata between two configured sources |
@@ -98,7 +98,7 @@ stateDiagram-v2
 
 ## Tool Schema Examples
 
-`execute_sql` input (list explicit columns; `SELECT *` may be rejected when the PII guard is on):
+`execute_sql` input (list explicit columns; `SELECT *` may be rejected while the PII guard is active—disable only with explicit policy: TOML, `ALLOW_ACCESS_TO_PII_DATA`, `--allow-access-to-pii-data=true`, or `--disable-pii-guard` for debugging):
 
 ```json
 {

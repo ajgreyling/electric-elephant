@@ -48,8 +48,47 @@ describe("pii-sql-guard", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("allows everything when allowAccess is true", () => {
-    expect(validateSqlPiiAccessGuard("SELECT * FROM patients", true)).toEqual({ ok: true });
+  describe("guard disabled (allowAccess true)", () => {
+    it("allows wildcard SELECT *", () => {
+      expect(validateSqlPiiAccessGuard("SELECT * FROM patients", true)).toEqual({ ok: true });
+    });
+
+    it("allows table.* projections", () => {
+      expect(validateSqlPiiAccessGuard("SELECT u.* FROM users u", true)).toEqual({ ok: true });
+    });
+
+    it("allows suspected PII and clinical column names", () => {
+      expect(
+        validateSqlPiiAccessGuard(
+          "SELECT id, email, blood_glucose, tax_id FROM patient_record",
+          true
+        )
+      ).toEqual({ ok: true });
+    });
+
+    it("allows eLabs HL7-style payload columns", () => {
+      expect(
+        validateSqlPiiAccessGuard(
+          "SELECT barcode, orderID, hl7messagecontrolid, resultForAction FROM results_integration",
+          true
+        )
+      ).toEqual({ ok: true });
+    });
+
+    it("allows RETURNING lists that would be blocked when guard is on", () => {
+      expect(
+        validateSqlPiiAccessGuard(
+          `UPDATE users SET name = 'x' WHERE id = 1 RETURNING email, *`,
+          true
+        )
+      ).toEqual({ ok: true });
+    });
+
+    it("allows multi-statement batches that include PII projections", () => {
+      expect(
+        validateSqlPiiAccessGuard("SELECT id FROM t; SELECT email FROM u", true)
+      ).toEqual({ ok: true });
+    });
   });
 
   it("blocks FHIR/LOINC/SNOMED columns by default (all standards enabled)", () => {

@@ -340,6 +340,42 @@ describe('execute-sql tool', () => {
       expect(parseToolResponse(result).success).toBe(true);
       expect(mockConnector.executeSQL).toHaveBeenCalled();
     });
+
+    it('should allow suspected PII columns when allow_access_to_pii_data is true (guard disabled)', async () => {
+      mockGetToolRegistry.mockReturnValue({
+        getBuiltinToolConfig: vi.fn().mockReturnValue({ allow_access_to_pii_data: true }),
+      } as any);
+      const mockResult: SQLResult = { rows: [{ id: 1, email: 'a@b.co' }], rowCount: 1 };
+      vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
+
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler({ sql: 'SELECT id, email FROM users' }, null);
+      const parsed = parseToolResponse(result);
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.data.rows).toEqual([{ id: 1, email: 'a@b.co' }]);
+      expect(mockConnector.executeSQL).toHaveBeenCalledWith('SELECT id, email FROM users', {
+        readonly: undefined,
+        maxRows: undefined,
+      });
+    });
+
+    it('should allow clinical-style columns when allow_access_to_pii_data is true (guard disabled)', async () => {
+      mockGetToolRegistry.mockReturnValue({
+        getBuiltinToolConfig: vi.fn().mockReturnValue({ allow_access_to_pii_data: true }),
+      } as any);
+      const mockResult: SQLResult = { rows: [], rowCount: 0 };
+      vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
+
+      const handler = createExecuteSqlToolHandler('test_source');
+      const result = await handler(
+        { sql: 'SELECT barcode, hl7messagecontrolid FROM results_integration' },
+        null
+      );
+
+      expect(parseToolResponse(result).success).toBe(true);
+      expect(mockConnector.executeSQL).toHaveBeenCalled();
+    });
   });
 
   describe('edge cases', () => {

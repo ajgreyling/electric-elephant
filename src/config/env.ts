@@ -159,11 +159,17 @@ export function allowDestructiveSql(): boolean {
  * When false (default), those queries are blocked unless overridden per TOML [[tools]].
  * Single-DSN mode: CLI `--allow-access-to-pii-data=true` or env `ALLOW_ACCESS_TO_PII_DATA` (true/1/yes).
  * Bare `--allow-access-to-pii-data` does not enable access; use explicit =true.
+ * For local debugging, `--disable-pii-guard` (or `=true` / `=1` / `=yes`) opts in the same way;
+ * `--allow-access-to-pii-data` wins when both are set.
  */
 export function allowAccessToPiiDataFromEnvCli(): boolean {
   const args = parseCommandLineArgs();
   if (args["allow-access-to-pii-data"] !== undefined) {
     return args["allow-access-to-pii-data"] === "true";
+  }
+  if (args["disable-pii-guard"] !== undefined) {
+    const v = args["disable-pii-guard"].trim().toLowerCase();
+    return v === "true" || v === "1" || v === "yes";
   }
   const raw = process.env.ALLOW_ACCESS_TO_PII_DATA;
   if (raw === undefined) {
