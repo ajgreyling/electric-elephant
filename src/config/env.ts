@@ -64,8 +64,9 @@ export function parseCommandLineArgs() {
         parsedManually[key] = args[i + 1];
         i++; // Skip the next argument as it's the value
       } else {
-        // Handle --key format (boolean flag). For allow-destructive-sql we require explicit =true.
-        if (key === "allow-destructive-sql" || key === "allow-access-to-pii-data") {
+        // Handle --key format (boolean flag).
+        // Keep PII access opt-in strict: bare --allow-access-to-pii-data does not enable it.
+        if (key === "allow-access-to-pii-data") {
           parsedManually[key] = "";
         } else {
           parsedManually[key] = "true";
@@ -147,11 +148,17 @@ export function loadEnvFiles(): string | null {
 /**
  * Whether destructive SQL (INSERT/UPDATE/DELETE/MERGE etc.) is allowed.
  * When false (default), the server runs in read-only mode; only SELECT and other read-only SQL is allowed.
- * Pass --allow-destructive-sql=true to allow write/delete/update/merge commands.
+ * Pass --allow-destructive-sql (or =true / =1 / =yes) to allow write/delete/update/merge commands.
  */
 export function allowDestructiveSql(): boolean {
   const args = parseCommandLineArgs();
-  return args["allow-destructive-sql"] === "true";
+  const value = args["allow-destructive-sql"];
+  if (value === undefined) {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
 }
 
 /**
@@ -629,7 +636,7 @@ export async function resolveSourceConfigs(): Promise<{
       source.ssh_keepalive_count_max = sshResult.config.keepaliveCountMax;
     }
 
-    // Single-DSN mode: read-only by default; require --allow-destructive-sql=true for writes
+    // Single-DSN mode: read-only by default; require --allow-destructive-sql for writes
     const readOnly = !allowDestructiveSql();
     const allowPii = allowAccessToPiiDataFromEnvCli();
     const tools: ToolConfig[] = [

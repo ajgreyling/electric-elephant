@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as envModule from "../env.js";
 
-const { buildDSNFromEnvParams, resolveDSN, resolveSourceConfigs } = envModule;
+const { buildDSNFromEnvParams, resolveDSN, resolveSourceConfigs, allowDestructiveSql } = envModule;
 
 vi.mock("../toml-loader.js", () => ({
   loadTomlConfig: vi.fn(() => null),
@@ -94,6 +94,19 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     const result = await resolveSourceConfigs();
     const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
     expect(executeSql && "allow_access_to_pii_data" in executeSql ? executeSql.allow_access_to_pii_data : undefined).toBeUndefined();
+  });
+
+  it("sets execute_sql readonly=false with bare --allow-destructive-sql in single-DSN mode", async () => {
+    process.argv = [
+      "node",
+      "script.js",
+      "--dsn=postgres://u:p@localhost:5432/db",
+      "--allow-destructive-sql",
+    ];
+
+    const result = await resolveSourceConfigs();
+    const executeSql = result?.tools?.find((t) => t.name === "execute_sql");
+    expect(executeSql).toMatchObject({ readonly: false });
   });
 
   it("sets allow_access_to_pii_data when ALLOW_ACCESS_TO_PII_DATA is true", async () => {
@@ -272,6 +285,23 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     it("returns false for --disable-pii-guard=0", () => {
       process.argv = ["node", "script.js", "--disable-pii-guard=0"];
       expect(envModule.allowAccessToPiiDataFromEnvCli()).toBe(false);
+    });
+  });
+
+  describe("allowDestructiveSql", () => {
+    it("enables destructive SQL for bare --allow-destructive-sql", () => {
+      process.argv = ["node", "script.js", "--allow-destructive-sql"];
+      expect(allowDestructiveSql()).toBe(true);
+    });
+
+    it("enables destructive SQL for --allow-destructive-sql=yes", () => {
+      process.argv = ["node", "script.js", "--allow-destructive-sql=yes"];
+      expect(allowDestructiveSql()).toBe(true);
+    });
+
+    it("keeps destructive SQL disabled when flag is absent", () => {
+      process.argv = ["node", "script.js"];
+      expect(allowDestructiveSql()).toBe(false);
     });
   });
 });
