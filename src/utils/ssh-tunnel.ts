@@ -6,7 +6,9 @@ import type { SSHTunnelConfig, SSHTunnelOptions, SSHTunnelInfo, JumpHost } from 
 import { resolveSymlink, parseJumpHosts } from './ssh-config-parser.js';
 
 function writeStderrLine(message: string): void {
-  process.stderr.write(`${message}\n`);
+  if (process.env.EE_LOG_STDERR === "true") {
+    process.stderr.write(`${message}\n`);
+  }
 }
 
 /**

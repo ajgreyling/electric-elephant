@@ -14,7 +14,9 @@ let managerInstance: ConnectorManager | null = null;
 const AWS_IAM_TOKEN_REFRESH_MS = 14 * 60 * 1000; // refresh before 15-minute token expiry
 
 function writeStderrLine(message: string): void {
-  process.stderr.write(`${message}\n`);
+  if (process.env.EE_LOG_STDERR === "true") {
+    process.stderr.write(`${message}\n`);
+  }
 }
 
 /**

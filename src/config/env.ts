@@ -15,7 +15,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function writeStderrLine(message: string): void {
-  process.stderr.write(`${message}\n`);
+  if (process.env.EE_LOG_STDERR === "true") {
+    process.stderr.write(`${message}\n`);
+  }
 }
 
 /** Every `--name` flag the server recognizes. Unknown flags exit the process with an error. */

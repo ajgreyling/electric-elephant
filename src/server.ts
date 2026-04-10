@@ -29,7 +29,9 @@ export const SERVER_NAME = "Electric Elephant MCP Server";
 export const SERVER_VERSION = packageJson.version;
 
 function writeStderrLine(message: string): void {
-  process.stderr.write(`${message}\n`);
+  if (process.env.EE_LOG_STDERR === "true") {
+    process.stderr.write(`${message}\n`);
+  }
 }
 
 /**
