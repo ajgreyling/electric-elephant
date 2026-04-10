@@ -123,6 +123,7 @@ stateDiagram-v2
 
 - [`docs/tools/overview.mdx`](docs/tools/overview.mdx) — all MCP tools and TOML whitelisting.
 - [`docs/tools/execute-sql.mdx`](docs/tools/execute-sql.mdx) — `execute_sql`, read-only mode, PII guard.
+- [`docs/config/command-line.mdx`](docs/config/command-line.mdx) — CLI flags including `--disable-pii-guard` and `--allow-access-to-pii-data` (single-DSN).
 - [`docs/tools/search-objects.mdx`](docs/tools/search-objects.mdx) — `search_objects` patterns and detail levels.
 - [`docs/tools/query-insights.mdx`](docs/tools/query-insights.mdx) — `query_insights` and `pg_stat_statements`.
 - [`docs/tools/schema-diff.mdx`](docs/tools/schema-diff.mdx) — `schema_diff` between two sources.
