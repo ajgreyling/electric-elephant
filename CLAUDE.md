@@ -150,7 +150,7 @@ Electric Elephant supports three configuration methods (in priority order):
 - Primary connector implementation: `src/connectors/postgres/index.ts`
 - Implements the `Connector` and `DSNParser` interfaces from `src/connectors/interface.ts`
 - DSN example: `postgres://user:password@localhost:5432/dbname?sslmode=disable`
-- SSL modes: `sslmode=disable` (no SSL) or `sslmode=require` (SSL without cert verification)
+- SSL modes: `sslmode=disable` (no SSL), `sslmode=require` (SSL without cert verification), `sslmode=verify-ca` (PostgreSQL only, CA verification), `sslmode=verify-full` (PostgreSQL only, CA + hostname verification). Use `sslrootcert` to specify CA certificate path for verify modes.
 
 ## Testing Approach
 

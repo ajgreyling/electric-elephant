@@ -61,16 +61,20 @@ Command-line flags are passed when starting Electric Elephant. These have the hi
   postgres://myuser:mypassword@localhost:5432/mydb
   postgres://user:password@localhost:5432/dbname?sslmode=disable
   postgres://user:password@localhost:5432/dbname?sslmode=require
+  postgres://user:password@rds-host:5432/dbname?sslmode=verify-ca&sslrootcert=~/.ssl/rds-ca.pem
   ```
 
   **Query parameters**
 
   | Parameter | Description | Example |
   |-----------|-------------|---------|
-  | `sslmode` | `disable` (plaintext) or `require` (TLS without cert verification) | `?sslmode=require` |
+  | `sslmode` | `disable`, `require`, `verify-ca`, or `verify-full` | `?sslmode=require` |
+  | `sslrootcert` | CA certificate path (requires `verify-ca` or `verify-full`) | `?sslrootcert=~/.ssl/rds-ca.pem` |
 
   - `sslmode=disable`: No TLS; traffic is plaintext.
   - `sslmode=require`: TLS without verifying the server certificate.
+  - `sslmode=verify-ca`: TLS with CA certificate verification, no hostname check.
+  - `sslmode=verify-full`: TLS with CA certificate and hostname verification.
 </ParamField>
 
 ### --schema
