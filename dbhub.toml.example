@@ -30,7 +30,7 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # database = "myapp"
 # user = "postgres"
 # password = "p@ss:word/123"
-# sslmode = "disable"  # Optional: "disable" or "require"
+# sslmode = "disable"  # Optional: "disable", "require", "verify-ca", or "verify-full"
 
 # Local PostgreSQL with custom schema (non-public schema)
 # [[sources]]
@@ -225,8 +225,11 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 #   ssh_keepalive_count_max (max missed keepalive responses, default: 3)
 #
 # SSL mode:
-#   sslmode = "disable"   # No SSL
-#   sslmode = "require"   # SSL without certificate verification
+#   sslmode = "disable"      # No SSL
+#   sslmode = "require"      # SSL without certificate verification
+#   sslmode = "verify-ca"    # SSL with CA certificate verification
+#   sslmode = "verify-full"  # SSL with CA + hostname verification
+#   sslrootcert = "~/.ssl/ca.pem"  # CA certificate path (requires verify-ca or verify-full)
 #
 # Tool Options:
 #   readonly = true    # Restrict to SELECT, SHOW, DESCRIBE, EXPLAIN (works for execute_sql and custom tools)

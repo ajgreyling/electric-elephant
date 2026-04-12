@@ -70,6 +70,70 @@ password = "secret"
     expect(buildDSNFromSource(source)).toBe("postgres://user:pass@localhost:5432/app");
   });
 
+  it("buildDSNFromSource includes verify-ca and sslrootcert when provided", () => {
+    const source: SourceConfig = {
+      id: "pg",
+      type: "postgres",
+      host: "localhost",
+      database: "app",
+      user: "user",
+      password: "pass",
+      sslmode: "verify-ca",
+      sslrootcert: "/tmp/ca.pem",
+    };
+
+    expect(buildDSNFromSource(source)).toBe(
+      "postgres://user:pass@localhost:5432/app?sslmode=verify-ca&sslrootcert=%2Ftmp%2Fca.pem"
+    );
+  });
+
+  it("reads sslmode and sslrootcert from DSN query params", () => {
+    const certPath = path.join(tempDir, "ca.pem");
+    fs.writeFileSync(certPath, "test-ca");
+
+    const tomlContent = `
+[[sources]]
+id = "pg"
+dsn = "postgres://user:pass@localhost:5432/app?sslmode=verify-ca&sslrootcert=${encodeURIComponent(certPath)}"
+`;
+    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
+
+    const result = loadTomlConfig();
+    expect(result?.sources[0]).toMatchObject({
+      sslmode: "verify-ca",
+      sslrootcert: certPath,
+    });
+  });
+
+  it("rejects sslrootcert without verify-ca or verify-full", () => {
+    const certPath = path.join(tempDir, "ca.pem");
+    fs.writeFileSync(certPath, "test-ca");
+
+    const tomlContent = `
+[[sources]]
+id = "pg"
+dsn = "postgres://user:pass@localhost:5432/app"
+sslmode = "require"
+sslrootcert = "${certPath}"
+`;
+    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
+
+    expect(() => loadTomlConfig()).toThrow("sslrootcert requires sslmode 'verify-ca' or 'verify-full'");
+  });
+
+  it("rejects missing sslrootcert file", () => {
+    const tomlContent = `
+[[sources]]
+id = "pg"
+dsn = "postgres://user:pass@localhost:5432/app"
+sslmode = "verify-ca"
+sslrootcert = "/does/not/exist/ca.pem"
+`;
+    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
+
+    expect(() => loadTomlConfig()).toThrow("sslrootcert file not found or not accessible");
+  });
+
   it("buildDSNFromSource rejects unsupported source type", () => {
     const source = {
       id: "bad",

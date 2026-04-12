@@ -370,11 +370,53 @@ function validateSourceConfig(source: SourceConfig, configPath: string): void {
 
   // Validate sslmode if provided
   if (source.sslmode !== undefined) {
-    const validSslModes = ["disable", "require"];
+    const validSslModes = ["disable", "require", "verify-ca", "verify-full"];
     if (!validSslModes.includes(source.sslmode)) {
       throw new Error(
         `Configuration file ${configPath}: source '${source.id}' has invalid sslmode '${source.sslmode}'. ` +
           `Valid values: ${validSslModes.join(", ")}`
+      );
+    }
+
+    if (
+      (source.sslmode === "verify-ca" || source.sslmode === "verify-full") &&
+      source.type !== "postgres"
+    ) {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' has sslmode '${source.sslmode}' which is only supported for PostgreSQL. ` +
+          `Valid values for ${source.type}: disable, require`
+      );
+    }
+  }
+
+  // Validate sslrootcert if provided
+  if (source.sslrootcert !== undefined) {
+    if (source.sslmode !== "verify-ca" && source.sslmode !== "verify-full") {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' has sslrootcert but sslmode is '${source.sslmode ?? "not set"}'. ` +
+          `sslrootcert requires sslmode 'verify-ca' or 'verify-full'`
+      );
+    }
+
+    const expandedPath = expandHomeDir(source.sslrootcert);
+    let stats: fs.Stats;
+    try {
+      stats = fs.statSync(expandedPath);
+    } catch {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' sslrootcert file not found or not accessible: '${expandedPath}'`
+      );
+    }
+    if (!stats.isFile()) {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' sslrootcert path is not a regular file: '${expandedPath}'`
+      );
+    }
+    try {
+      fs.accessSync(expandedPath, fs.constants.R_OK);
+    } catch {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' sslrootcert file is not readable: '${expandedPath}'`
       );
     }
   }
@@ -433,6 +475,11 @@ function processSourceConfigs(
       processed.ssh_key = expandHomeDir(processed.ssh_key);
     }
 
+    // Expand ~ in sslrootcert path
+    if (processed.sslrootcert) {
+      processed.sslrootcert = expandHomeDir(processed.sslrootcert);
+    }
+
     // Parse DSN to populate connection info fields (if not already set)
     // This ensures API responses include host/port/database/user even when DSN is used
     if (processed.dsn) {
@@ -454,6 +501,20 @@ function processSourceConfigs(
         if (!processed.user && connectionInfo.user) {
           processed.user = connectionInfo.user;
         }
+      }
+
+      try {
+        const url = new SafeURL(processed.dsn);
+        const dsnSslmode = url.getSearchParam("sslmode");
+        if (!processed.sslmode && dsnSslmode) {
+          processed.sslmode = dsnSslmode as SourceConfig["sslmode"];
+        }
+        const dsnSslrootcert = url.getSearchParam("sslrootcert");
+        if (!processed.sslrootcert && dsnSslrootcert) {
+          processed.sslrootcert = dsnSslrootcert;
+        }
+      } catch {
+        // DSN parsing for query params is best-effort; connector will handle errors.
       }
     }
 
@@ -556,6 +617,15 @@ export function buildDSNFromSource(source: SourceConfig): string {
   // Add sslmode for PostgreSQL DSNs.
   if (source.sslmode) {
     queryParams.push(`sslmode=${source.sslmode}`);
+  }
+
+  if (
+    source.sslrootcert &&
+    source.type === "postgres" &&
+    (source.sslmode === "verify-ca" || source.sslmode === "verify-full")
+  ) {
+    const expandedCertPath = expandHomeDir(source.sslrootcert);
+    queryParams.push(`sslrootcert=${encodeURIComponent(expandedCertPath)}`);
   }
 
   // Append query string if any params exist

@@ -36,7 +36,31 @@ Backported upstream commits:
 - `frontend/` - local web workbench UI.
 - `CLAUDE.md` - architecture and development conventions.
 
-## Quick Start
+## Installation
+
+For end users running Electric Elephant as an MCP server:
+
+**NPM (`npx`):**
+
+```bash
+npx electric-elephant --transport http --port 8080 --dsn "postgres://postgres:postgres@localhost:5432/postgres"
+```
+
+**Docker:**
+
+```bash
+docker run --rm --init \
+  --name electric-elephant \
+  --publish 8080:8080 \
+  electric-elephant \
+  --transport http \
+  --port 8080 \
+  --dsn "postgres://postgres:postgres@host.docker.internal:5432/postgres"
+```
+
+See [`docs/installation.mdx`](docs/installation.mdx) and [`docs/quickstart.mdx`](docs/quickstart.mdx) for full client setup instructions.
+
+## Development Quick Start
 
 ```bash
 pnpm install
@@ -49,6 +73,16 @@ Build and test:
 pnpm run build
 pnpm test
 ```
+
+## Workbench
+
+Electric Elephant includes a built-in web Workbench for running tools and inspecting request traces.
+
+- Start server with HTTP transport (examples above), then open `http://localhost:8080`
+- Workbench UI: `/`
+- MCP endpoint: `/mcp`
+
+More details: [`docs/workbench/overview.mdx`](docs/workbench/overview.mdx)
 
 ## MCP Request Flow
 

@@ -35,7 +35,8 @@ export interface ConnectionParams {
   password?: string;
   aws_iam_auth?: boolean; // Enable AWS IAM auth token generation for RDS
   aws_region?: string; // AWS region required when aws_iam_auth is enabled
-  sslmode?: "disable" | "require";
+  sslmode?: "disable" | "require" | "verify-ca" | "verify-full";
+  sslrootcert?: string;
 }
 
 /**
