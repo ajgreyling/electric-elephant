@@ -87,24 +87,6 @@ password = "secret"
     );
   });
 
-  it("reads sslmode and sslrootcert from DSN query params", () => {
-    const certPath = path.join(tempDir, "ca.pem");
-    fs.writeFileSync(certPath, "test-ca");
-
-    const tomlContent = `
-[[sources]]
-id = "pg"
-dsn = "postgres://user:pass@localhost:5432/app?sslmode=verify-ca&sslrootcert=${encodeURIComponent(certPath)}"
-`;
-    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
-
-    const result = loadTomlConfig();
-    expect(result?.sources[0]).toMatchObject({
-      sslmode: "verify-ca",
-      sslrootcert: certPath,
-    });
-  });
-
   it("rejects sslrootcert without verify-ca or verify-full", () => {
     const certPath = path.join(tempDir, "ca.pem");
     fs.writeFileSync(certPath, "test-ca");

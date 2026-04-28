@@ -12,12 +12,15 @@ Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyl
 
 ## Upstream Sync Status
 
-Electric Elephant is a fork of dbhub. PostgreSQL-relevant upstream fixes are synced through dbhub commit `30d8007998503defc05d5198bcbd9130c609ee41` (2026-04-07), on top of upstream release line `v0.21.2`.
+Electric Elephant is a fork of dbhub. PostgreSQL-relevant upstream fixes are synced through dbhub commit `72adfdce530ebaf2d7e6df12de5ecde0d174cf4f` (2026-04-21), on top of upstream release line `v0.21.2`.
 
 Backported upstream commits:
 - `f319114033279532aff2ce9aaef2ce84b127a21f` (PostgreSQL `getTableComment()` view support)
 - `ce2621d83d78d9ab8b363664c955584cb59ee049` (graceful skip on transitive `MODULE_NOT_FOUND`)
 - `30d8007998503defc05d5198bcbd9130c609ee41` (HTTP DNS rebinding protection)
+- `f13fad459d1ac9f7837fc39e37941247bd6d0c6d` (PostgreSQL SSL `verify-ca`/`verify-full` + `sslrootcert`)
+- `f35144b87f4394dd7a36416b7a459bfd710b61f4` (SSL documentation updates for `verify-ca` / `verify-full`)
+- `72adfdce530ebaf2d7e6df12de5ecde0d174cf4f` (source description surfaced in MCP tool descriptions)
 
 ## Purpose
 
