@@ -42,7 +42,12 @@ const HARD_PII_PHRASES: string[] = [
   "hospital number",
   "hos number",
   "surname",
+  "given name",
+  "family name",
+  "middle name",
+  "maiden name",
   "sex",
+  "gender",
   "email",
   "ssn",
   "tax id",
@@ -53,9 +58,101 @@ const HARD_PII_PHRASES: string[] = [
   "last name",
   "full name",
   "dob",
+  "date of birth",
   "birth date",
+  "birthdate",
   "address",
 ];
+
+/**
+ * A bare `name` column (or camelCase `fullName`, `firstName`, …) is a personal
+ * identifier and hard-excluded — but the word "name" also appears in many
+ * non-personal columns. Treat a projection as a personal name when it contains
+ * the token `name` UNLESS that `name` is qualified by a safe, non-personal
+ * prefix (e.g. table_name, file_name, product_name).
+ */
+const SAFE_NAME_PREFIXES = new Set([
+  "table",
+  "column",
+  "schema",
+  "database",
+  "db",
+  "field",
+  "object",
+  "type",
+  "index",
+  "constraint",
+  "role",
+  "user", // login/username is a credential handled elsewhere, not a personal name
+  "host",
+  "domain",
+  "file",
+  "path",
+  "event",
+  "product",
+  "company",
+  "organisation",
+  "organization",
+  "org",
+  "brand",
+  "tag",
+  "key",
+  "class",
+  "method",
+  "function",
+  "variable",
+  "attribute",
+  "property",
+  "parameter",
+  "param",
+  "step",
+  "stage",
+  "node",
+  "service",
+  "job",
+  "task",
+  "queue",
+  "topic",
+  "channel",
+  "bucket",
+  "region",
+  "zone",
+  "code",
+  "screen",
+  "page",
+  "route",
+  "app",
+  "application",
+  "module",
+  "package",
+  "project",
+  "repo",
+  "repository",
+  "branch",
+  "tenant",
+  "category",
+  "group",
+  "team",
+]);
+
+function matchesPersonalName(norm: string): boolean {
+  const tokens = norm.split(" ").filter(Boolean);
+  const nameIdx = tokens.indexOf("name");
+  if (nameIdx === -1) {
+    return false;
+  }
+  // Standalone "name" with no qualifier → personal.
+  if (tokens.length === 1) {
+    return true;
+  }
+  // If any token immediately preceding "name" is a safe non-personal prefix,
+  // treat the whole projection as non-personal (e.g. "table name", "file name").
+  const prev = nameIdx > 0 ? tokens[nameIdx - 1] : undefined;
+  if (prev && SAFE_NAME_PREFIXES.has(prev)) {
+    return false;
+  }
+  return true;
+}
 
 const DIRECT_PHRASES_BY_STANDARD: Record<ClinicalStandard, string[]> = {
   hl7v2: [
@@ -409,6 +506,10 @@ export function findHardPiiMatchesInProjectionText(text: string): string[] {
       matches.push(phrase);
       if (matches.length >= MAX_MATCHES) { return matches; }
     }
+  }
+  // Bare/unqualified personal-name columns (name, fullName, firstName, ...).
+  if (matches.length < MAX_MATCHES && matchesPersonalName(norm) && !matches.includes("name")) {
+    matches.push("name");
   }
   return matches;
 }

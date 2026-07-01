@@ -54,17 +54,17 @@ describe('execute-sql tool', () => {
 
   describe('basic execution', () => {
     it('should execute SELECT and return rows', async () => {
-      const mockResult: SQLResult = { rows: [{ id: 1, name: 'test' }], rowCount: 1 };
+      const mockResult: SQLResult = { rows: [{ id: 1, status: 'active' }], rowCount: 1 };
       vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
 
       const handler = createExecuteSqlToolHandler('test_source');
-      const result = await handler({ schema: 'public', sql: 'SELECT id, name FROM users' }, null);
+      const result = await handler({ schema: 'public', sql: 'SELECT id, status FROM users' }, null);
       const parsedResult = parseToolResponse(result);
 
       expect(parsedResult.success).toBe(true);
-      expect(parsedResult.data.rows).toEqual([{ id: 1, name: 'test' }]);
+      expect(parsedResult.data.rows).toEqual([{ id: 1, status: 'active' }]);
       expect(parsedResult.data.count).toBe(1);
-      expect(mockConnector.executeSQL).toHaveBeenCalledWith('SELECT id, name FROM users', { readonly: undefined, maxRows: undefined, targetSchema: 'public' });
+      expect(mockConnector.executeSQL).toHaveBeenCalledWith('SELECT id, status FROM users', { readonly: undefined, maxRows: undefined, targetSchema: 'public' });
     });
 
     it('should pass multi-statement SQL directly to connector', async () => {
@@ -110,11 +110,11 @@ describe('execute-sql tool', () => {
       vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);
 
       const handler = createExecuteSqlToolHandler('test_source');
-      const result = await handler({ schema: 'public', sql: 'SELECT id, name FROM users' }, null);
+      const result = await handler({ schema: 'public', sql: 'SELECT id, status FROM users' }, null);
       const parsedResult = parseToolResponse(result);
 
       expect(parsedResult.success).toBe(true);
-      expect(mockConnector.executeSQL).toHaveBeenCalledWith('SELECT id, name FROM users', { readonly: true, maxRows: undefined, targetSchema: 'public' });
+      expect(mockConnector.executeSQL).toHaveBeenCalledWith('SELECT id, status FROM users', { readonly: true, maxRows: undefined, targetSchema: 'public' });
     });
 
     it('should allow multiple read-only statements', async () => {
@@ -204,9 +204,9 @@ describe('execute-sql tool', () => {
     });
 
     it.each([
-      ['single-line comment', '-- Fetch users\nSELECT id, name FROM users'],
+      ['single-line comment', '-- Fetch users\nSELECT id, status FROM users'],
       ['multi-line comment', '/* Fetch all */\nSELECT id, title FROM products'],
-      ['inline comments', 'SELECT id, -- user id\n       name FROM users'],
+      ['inline comments', 'SELECT id, -- user id\n       status FROM users'],
     ])('should allow SELECT with %s', async (_, sql) => {
       const mockResult: SQLResult = { rows: [], rowCount: 0 };
       vi.mocked(mockConnector.executeSQL).mockResolvedValue(mockResult);

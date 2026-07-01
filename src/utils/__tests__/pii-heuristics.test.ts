@@ -69,6 +69,38 @@ describe("pii-heuristics", () => {
       expect(findHardPiiMatchesInProjectionText("hos_number")).toContain("hos number");
     });
 
+    it("flags bare and compound personal-name columns", () => {
+      expect(findHardPiiMatchesInProjectionText("name")).toContain("name");
+      expect(findHardPiiMatchesInProjectionText("full_name")).toContain("name");
+      expect(findHardPiiMatchesInProjectionText("fullName")).toContain("name");
+      expect(findHardPiiMatchesInProjectionText("firstName")).toContain("name");
+      expect(findHardPiiMatchesInProjectionText("customer_name")).toContain("name");
+      expect(findHardPiiMatchesInProjectionText("employee_name")).toContain("name");
+      expect(findHardPiiMatchesInProjectionText("display_name")).toContain("name");
+    });
+
+    it("does NOT flag non-personal *_name columns", () => {
+      for (const c of [
+        "table_name",
+        "column_name",
+        "file_name",
+        "product_name",
+        "company_name",
+        "event_name",
+        "schema_name",
+        "role_name",
+        "user_name",
+        "username",
+        "host_name",
+        "domain_name",
+        "index_name",
+        "tag_name",
+        "brand_name",
+      ]) {
+        expect(findHardPiiMatchesInProjectionText(c)).toEqual([]);
+      }
+    });
+
     it("does NOT flag mobile/phone as hard PII (that is the overridable field)", () => {
       expect(findHardPiiMatchesInProjectionText("mobile")).toEqual([]);
       expect(findHardPiiMatchesInProjectionText("mobile_number")).toEqual([]);

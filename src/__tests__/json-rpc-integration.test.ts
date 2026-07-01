@@ -80,6 +80,7 @@ describe("JSON RPC Integration Tests", () => {
           id SERIAL PRIMARY KEY,
           name VARCHAR(100) NOT NULL,
           email VARCHAR(100) UNIQUE NOT NULL,
+          mobile_number VARCHAR(20),
           age INTEGER
         );
 
@@ -90,10 +91,10 @@ describe("JSON RPC Integration Tests", () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        INSERT INTO users (name, email, age) VALUES
-        ('John Doe', 'john@example.com', 30),
-        ('Jane Smith', 'jane@example.com', 25),
-        ('Bob Johnson', 'bob@example.com', 35);
+        INSERT INTO users (name, email, mobile_number, age) VALUES
+        ('John Doe', 'john@example.com', '+27820000001', 30),
+        ('Jane Smith', 'jane@example.com', '+27820000002', 25),
+        ('Bob Johnson', 'bob@example.com', '+27820000003', 35);
 
         INSERT INTO orders (user_id, total) VALUES
         (1, 99.99),
@@ -326,6 +327,55 @@ describe("JSON RPC Integration Tests", () => {
       }
       expect(succeeded).toBe(false);
       expect(text.toLowerCase()).toContain("schema");
+    });
+  });
+
+  // This server runs with --allow-access-to-pii-data=true, so these live tests
+  // prove the flag does NOT unblock health data or non-mobile PII, and DOES
+  // permit the mobile/phone number (the Helium username).
+  describe("PII / health hard-exclusion (allow_access_to_pii_data=true)", () => {
+    async function callSql(sql: string) {
+      const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
+        sql,
+      })) as { result: { content: { text: string }[] } };
+      return JSON.parse(response.result.content[0].text);
+    }
+
+    it("blocks a personal identifier (email) even with the override on", async () => {
+      const content = await callSql("SELECT id, email FROM users WHERE id = 1");
+      expect(content.success).toBe(false);
+      expect(content.code).toBe("PII_ACCESS_VIOLATION");
+      expect(content.details?.reason).toBe("hard_pii_blocked");
+    });
+
+    it("blocks a name projection even with the override on", async () => {
+      const content = await callSql("SELECT id, name FROM users WHERE id = 1");
+      expect(content.success).toBe(false);
+      expect(content.code).toBe("PII_ACCESS_VIOLATION");
+      expect(content.details?.reason).toBe("hard_pii_blocked");
+    });
+
+    it("blocks a wildcard projection even with the override on", async () => {
+      const content = await callSql("SELECT * FROM users WHERE id = 1");
+      expect(content.success).toBe(false);
+      expect(content.code).toBe("PII_ACCESS_VIOLATION");
+      expect(content.details?.reason).toBe("wildcard_clinical_risk");
+    });
+
+    it("blocks a clinical/health projection even with the override on", async () => {
+      // Column need not exist — the guard rejects the projection before execution.
+      const content = await callSql("SELECT id, hiv_status FROM users WHERE id = 1");
+      expect(content.success).toBe(false);
+      expect(content.code).toBe("PII_ACCESS_VIOLATION");
+      expect(content.details?.reason).toBe("clinical_health_data_blocked");
+    });
+
+    it("allows the mobile/phone number (the Helium username) with the override on", async () => {
+      const content = await callSql("SELECT id, mobile_number FROM users WHERE id = 1");
+      expect(content.success).toBe(true);
+      expect(content.data.rows).toHaveLength(1);
+      expect(content.data.rows[0].mobile_number).toBe("+27820000001");
     });
   });
 
