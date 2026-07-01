@@ -161,13 +161,17 @@ export function getExecuteSqlMetadata(sourceId: string): ToolMetadata {
   const userDescPrefix = buildSourceDescriptionPrefix(sourceConfig.description);
   const readonlyNote = executeOptions.readonly ? " [READ-ONLY MODE]" : "";
   const maxRowsNote = executeOptions.maxRows ? ` (limited to ${executeOptions.maxRows} rows)` : "";
+  // Health/clinical data and most PII are ALWAYS blocked; the flag only unblocks
+  // the user's mobile/phone number. Reflect that so clients don't assume "off"
+  // means all sensitive data is returnable.
   const piiNote =
     executeOptions.allowPii === true
-      ? " [PII/clinical column guard off]"
-      : " [PII/clinical column guard on]";
+      ? " [health/clinical + PII blocked; mobile number allowed]"
+      : " [health/clinical + all PII blocked]";
+  const schemaNote = " Requires a single target 'schema' argument; cross-schema and system-catalog access are rejected.";
   const description = isSingleSource
-    ? `${userDescPrefix}Execute SQL queries on the ${dbType} database${readonlyNote}${maxRowsNote}${piiNote}`
-    : `${userDescPrefix}Execute SQL queries on the '${sourceId}' ${dbType} database${readonlyNote}${maxRowsNote}${piiNote}`;
+    ? `${userDescPrefix}Execute SQL queries on the ${dbType} database${readonlyNote}${maxRowsNote}${piiNote}.${schemaNote}`
+    : `${userDescPrefix}Execute SQL queries on the '${sourceId}' ${dbType} database${readonlyNote}${maxRowsNote}${piiNote}.${schemaNote}`;
 
   // Build annotations object with all standard MCP hints
   const isReadonly = executeOptions.readonly === true;

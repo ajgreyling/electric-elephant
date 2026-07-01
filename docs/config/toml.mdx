@@ -308,7 +308,7 @@ Sources define database connections. Each source represents a database that Elec
 ### search_path
 
 <ParamField path="search_path" type="string">
-  Comma-separated list of PostgreSQL schema names to set as the session `search_path`. The first schema in the list becomes the default schema for all discovery methods (`getTables`, `getTableSchema`, etc.).
+  A **single** PostgreSQL schema name used as the default schema for discovery methods (`getTables`, `getTableSchema`, etc.). Comma-separated lists are **rejected** — scoped single-schema isolation requires exactly one schema.
 
   **PostgreSQL only.**
 
@@ -316,7 +316,7 @@ Sources define database connections. Each source represents a database that Elec
   [[sources]]
   id = "production"
   dsn = "postgres://user:pass@localhost:5432/mydb"
-  search_path = "myschema,public"
+  search_path = "myschema"
   ```
 
   Without `search_path`, Electric Elephant defaults to the `public` schema for all schema discovery operations.
@@ -425,13 +425,13 @@ Tools define MCP tools (like `execute_sql`) with specific execution settings. To
 ### allow_access_to_pii_data
 
 <ParamField path="allow_access_to_pii_data" type="boolean" default="false">
-  **execute_sql only.** When `false` or omitted, Electric Elephant may reject queries that project wildcards (`*` or `table.*`) or columns/expressions that match PII or sensitive clinical heuristics. Set to `true` only when policy explicitly allows returning that data.
+  **execute_sql only.** Health/clinical data (HL7v2, FHIR, LOINC, SNOMED, medical fields), personal identifiers (names, email, national IDs, DOB, address), and wildcard projections (`*`, `table.*`) are **always blocked** and cannot be returned — this flag does **not** unblock them. The **only** thing it unblocks is the user's **mobile/phone number** (the Helium username). When `false` or omitted, even the mobile number is blocked. Set to `true` only when policy explicitly allows returning the mobile number.
 
   ```toml
   [[tools]]
   name = "execute_sql"
   source = "production"
-  allow_access_to_pii_data = true
+  allow_access_to_pii_data = true  # unblocks the mobile/phone username ONLY
   ```
 
   <Note>
@@ -451,7 +451,10 @@ Tools define MCP tools (like `execute_sql`) with specific execution settings. To
   name = "get_user_by_id"
   description = "Retrieve user details by their unique ID"
   source = "production"
-  statement = "SELECT id, name, email, created_at FROM users WHERE id = $1"
+  # Custom tool statements must not project health data or personal identifiers
+  # (names, email, etc.) or wildcards — those are hard-excluded and rejected at
+  # registration. Only non-sensitive columns (or the mobile number) are allowed.
+  statement = "SELECT id, created_at, status FROM users WHERE id = $1"
 
   [[tools.parameters]]
   name = "user_id"
@@ -634,7 +637,7 @@ default = 10
 | `query_timeout` | number | ❌ | Query timeout (seconds); default **300** (5 min) when omitted |
 | `sslmode` | string | ❌ | SSL mode: `disable`, `require`, `verify-ca`, `verify-full` |
 | `sslrootcert` | string | ❌ | CA certificate path (requires `verify-ca` or `verify-full`) |
-| `search_path` | string | ❌ | PostgreSQL schema search path (comma-separated) |
+| `search_path` | string | ❌ | Default PostgreSQL schema (a single schema name; comma-separated lists are rejected) |
 | `ssh_host` | string | ❌ | SSH server hostname |
 | `ssh_port` | number | ❌ | SSH server port (default: 22) |
 | `ssh_user` | string | ❌ | SSH username |
@@ -654,4 +657,4 @@ default = 10
 | `parameters` | array | ❌ | Parameter definitions for custom tools |
 | `readonly` | boolean | ❌ | Read-only mode (default: `false`) |
 | `max_rows` | number | ❌ | Max rows limit (default: unlimited) |
-| `allow_access_to_pii_data` | boolean | ❌ | Allow PII/clinical-sensitive projections for `execute_sql` (default: `false`) |
+| `allow_access_to_pii_data` | boolean | ❌ | Unblock the mobile/phone number ONLY for `execute_sql`; health data and all other PII stay hard-excluded (default: `false`) |

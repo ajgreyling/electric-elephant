@@ -80,10 +80,10 @@ Command-line flags are passed when starting Electric Elephant. These have the hi
 ### --schema
 
 <ParamField path="--schema" type="string">
-  **Single-DSN mode only.** Sets PostgreSQL `search_path` for the connection (same as TOML `search_path` on a source): comma-separated schema list, e.g. `my_schema,public`. The first schema is used as the default for unqualified object discovery.
+  **Single-DSN mode only.** Sets the default PostgreSQL schema for the connection (same as TOML `search_path` on a source): a **single** schema name, e.g. `app_schema`. Comma-separated lists are rejected — scoped single-schema isolation requires exactly one schema.
 
   ```bash
-  npx electric-elephant --dsn "postgres://..." --schema app_schema,public
+  npx electric-elephant --dsn "postgres://..." --schema app_schema
   ```
 </ParamField>
 
@@ -214,9 +214,9 @@ For TOML and tool-level `readonly`, see [Execute SQL — Read-Only Mode](/tools/
 
 ## PII and clinical data guard (execute_sql) {#pii-guard-cli}
 
-Single-DSN mode (`--dsn` / env without `--config`) uses the same default as TOML: **`execute_sql` does not allow PII/clinical-sensitive projections** unless you opt in.
+Health/clinical data (HL7v2, FHIR, LOINC, SNOMED, medical fields), personal identifiers (names, email, national IDs, DOB, address), and wildcard projections (`*`, `table.*`) are **always blocked** on `execute_sql` and cannot be returned. Opting in does **not** unblock them. The **only** field the opt-in unblocks is the user's **mobile/phone number** (the Helium username); by default even that is blocked.
 
-**Ways to opt in**
+**Ways to opt in (unblocks the mobile number only)**
 
 - **TOML (recommended, including multi-source):** `allow_access_to_pii_data = true` on the `[[tools]]` entry for `execute_sql` — see [TOML — allow_access_to_pii_data](/config/toml#allow_access_to_pii_data).
 - **Environment (single-DSN only):** `ALLOW_ACCESS_TO_PII_DATA=true` (also accepts `1` or `yes`, case-insensitive).
@@ -227,7 +227,7 @@ For behavior, error code `PII_ACCESS_VIOLATION`, and examples, see [Execute SQL 
 ### --allow-access-to-pii-data
 
 <ParamField path="--allow-access-to-pii-data" type="string" env="ALLOW_ACCESS_TO_PII_DATA">
-  **Single-DSN mode only** (not used with `--config` / TOML). A **bare** flag or value `true`, `1`, or `yes` (case-insensitive) allows `execute_sql` to bypass the PII/clinical projection guard. Prefer TOML per-source tool config when using multiple databases.
+  **Single-DSN mode only** (not used with `--config` / TOML). A **bare** flag or value `true`, `1`, or `yes` (case-insensitive) permits `execute_sql` to return the user's mobile/phone number. Health data and all other PII remain hard-excluded regardless of this flag. Prefer TOML per-source tool config when using multiple databases.
 
   ```bash
   ALLOW_ACCESS_TO_PII_DATA=true npx electric-elephant --dsn "postgres://..."
@@ -244,9 +244,9 @@ For behavior, error code `PII_ACCESS_VIOLATION`, and examples, see [Execute SQL 
 | `--port` | `PORT` | number | HTTP server port (http transport only, default: `8080`) |
 | `--id` | `ID` | string | Instance identifier for tool names |
 | `--config` | - | string | Path to TOML config file (default: `./dbhub.toml`) |
-| `--schema` | - | string | Single-DSN only: PostgreSQL `search_path` (comma-separated schemas) |
+| `--schema` | - | string | Single-DSN only: default PostgreSQL schema (a single schema name; comma-separated lists are rejected) |
 | `--allow-destructive-sql` | - | string | Single-DSN only: bare or `true` / `1` / `yes` allows mutating SQL on `execute_sql` |
-| `--allow-access-to-pii-data` | `ALLOW_ACCESS_TO_PII_DATA` | string | Single-DSN only: bare or `true` / `1` / `yes` allows sensitive projections on `execute_sql` |
+| `--allow-access-to-pii-data` | `ALLOW_ACCESS_TO_PII_DATA` | string | Single-DSN only: bare or `true` / `1` / `yes` permits the mobile number on `execute_sql`; health data and other PII stay hard-excluded |
 | `--dsn` | `DSN` | string | PostgreSQL connection string (required unless using `--config` or `DB_*` env vars) |
 | - | `DB_TYPE` | string | Must be `postgres` when set |
 | - | `DB_HOST` | string | Database hostname |

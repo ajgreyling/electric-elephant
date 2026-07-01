@@ -36,8 +36,7 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # [[sources]]
 # id = "local_pg_custom_schema"
 # dsn = "postgres://postgres:postgres@localhost:5432/myapp"
-# search_path = "myschema,public"  # Comma-separated list of schemas; first is the default for discovery
-# search_path = "myschema"  # Single target schema (required for scoped isolation)
+# search_path = "myschema"  # Single schema name (required for scoped isolation; comma-separated lists are rejected)
 
 # Development PostgreSQL (shared dev server)
 # [[sources]]
@@ -129,12 +128,14 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # readonly = true       # Optional: restrict to read-only operations
 # max_rows = 100        # Optional: limit result set size
 # statement = """
-#   SELECT e.emp_no, e.first_name, e.last_name, d.dept_name, dm.from_date
+#   SELECT e.emp_no, d.dept_name, dm.from_date
 #   FROM dept_manager dm
 #   JOIN employee e ON dm.emp_no = e.emp_no
 #   JOIN department d ON dm.dept_no = d.dept_no
 #   ORDER BY d.dept_name
 # """
+# Note: custom-tool statements are checked at registration — projecting personal
+# identifiers (names, email, etc.), health data, or wildcards (SELECT *) is rejected.
 
 # Example: Search employees by salary range (PostgreSQL - required + optional parameter)
 # [[tools]]
@@ -144,7 +145,7 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # readonly = true       # Optional: restrict to read-only operations
 # max_rows = 1000       # Optional: limit result set size
 # statement = """
-#   SELECT e.emp_no, e.first_name, e.last_name, s.amount as salary
+#   SELECT e.emp_no, s.amount as salary
 #   FROM employee e
 #   JOIN salary s ON e.emp_no = s.emp_no
 #   WHERE s.amount >= $1
@@ -208,7 +209,7 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 #   description = "..."        # Optional: human-readable description
 #   dsn = "..."                # Connection string (or use individual params below)
 #   lazy = true                # Defer connection until first query (default: false)
-#   search_path = "schema1,public"  # PostgreSQL only: comma-separated schemas
+#   search_path = "schema1"    # PostgreSQL only: single schema name (comma-separated lists are rejected)
 #   aws_iam_auth = true         # Optional: enable AWS RDS IAM auth (PostgreSQL)
 #   aws_region = "eu-west-1"    # Required when aws_iam_auth = true
 #

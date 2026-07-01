@@ -37,7 +37,7 @@ Electric Elephant brings database access to AI coding assistants with guardrails
 - **Local development first**: Token-efficient tools and a small surface area
 - **PostgreSQL-native**: One dialect, one connector — less ambiguity for models and operators
 - **Multi-connection**: Several Postgres instances via `dbhub.toml` (`source_id` on tools)
-- **Guardrails**: Read-only mode, row limiting, **5-minute default** query timeout (override with `query_timeout` in TOML), and optional PII/clinical column checks on `execute_sql` (wildcards and heuristic column matches blocked unless explicitly opted in)
+- **Guardrails**: Read-only mode, row limiting, **5-minute default** query timeout (override with `query_timeout` in TOML), mandatory single-schema scope on every row-returning tool, and hard exclusion of health/clinical data + personal identifiers + wildcards on `execute_sql` (only the mobile-number username is unblockable via `allow_access_to_pii_data`)
 - **Secure Access**: SSH tunneling and SSL/TLS encryption
 
 ## Key Features

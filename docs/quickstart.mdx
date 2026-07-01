@@ -101,7 +101,7 @@ Try these example prompts in your AI tool (adapt table names to your schema):
     ```
 
     <Note>
-    With the default [PII/clinical guard](/tools/execute-sql#pii-and-clinical-data-guard), `SELECT *` may be rejected; prefer explicit columns after inspecting the table with `search_objects`.
+    The [PII/clinical guard](/tools/execute-sql#pii-and-clinical-data-guard) always rejects `SELECT *` (and health/personal columns); list explicit non-sensitive columns after inspecting the table with `search_objects`.
     </Note>
   </Accordion>
 

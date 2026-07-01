@@ -20,8 +20,17 @@ import type { ExecuteSqlToolConfig } from "../types/config.js";
 
 // Schema for execute_sql tool
 export const executeSqlSchema = {
-  schema: z.string().min(1).describe("Target schema for this query (required)"),
-  sql: z.string().describe("SQL to execute (multiple statements separated by ;)"),
+  schema: z
+    .string()
+    .min(1)
+    .describe(
+      "Target schema for this query (required). SQL must stay within this schema; cross-schema and system-catalog (information_schema, pg_catalog) references are rejected."
+    ),
+  sql: z
+    .string()
+    .describe(
+      "SQL to execute (multiple statements separated by ;). Health/clinical data (HL7v2, FHIR, LOINC, SNOMED, medical fields), personal identifiers (names, email, national IDs, DOB, address), and wildcard projections (SELECT *, table.*) are always blocked and cannot be returned; only the user's mobile/phone number may be permitted via allow_access_to_pii_data. List explicit, non-sensitive columns."
+    ),
 };
 
 /**

@@ -6,7 +6,9 @@
 
 Electric Elephant is a token-efficient MCP server for exploring and querying **PostgreSQL** from MCP-capable clients. It is **not** a generic SQL bridge: only PostgreSQL is supported (not MySQL, SQLite, SQL Server, Oracle, or other engines).
 
-**PII and clinical data:** The server **attempts to mitigate** accidental exposure of personally identifiable information and sensitive clinical-style fields through `execute_sql` (heuristic, fail-closed checks on projections before queries run). That is a **best-effort safeguard**, not certification or a substitute for database permissions, row-level security, legal review, or your own data policies. See the Purpose bullet and [`docs/tools/execute-sql.mdx`](docs/tools/execute-sql.mdx).
+**Schema scoping:** Every row-returning tool (`execute_sql`, `search_objects`, `explain_plan`, custom tools) requires a per-call `schema` argument, and SQL is confined to that single schema — cross-schema and system-catalog (`information_schema`, `pg_catalog`) references are rejected before any other check, and the session `search_path` is pinned with `SET LOCAL`.
+
+**Health and PII data:** Health/clinical data (HL7v2, FHIR, LOINC, SNOMED, medical fields), personal identifiers (names, email, national IDs, DOB, address), and wildcard projections (`SELECT *`, `table.*`) are **hard-excluded** on `execute_sql` and custom tools — they can never be returned, and `allow_access_to_pii_data` does **not** unblock them. The **only** field the opt-in unblocks is the user's mobile/phone number (the Helium username). These are heuristic, name-based checks (best-effort, can false-positive/negative) — a safeguard, not certification or a substitute for database permissions, row-level security, legal review, or your own data policies. See [`docs/tools/execute-sql.mdx`](docs/tools/execute-sql.mdx).
 
 Repository: [github.com/ajgreyling/electric-elephant](https://github.com/ajgreyling/electric-elephant)
 
@@ -27,7 +29,8 @@ Backported upstream commits:
 - Expose PostgreSQL through MCP tools (`execute_sql`, `search_objects`, `query_insights`, `schema_diff`, observability helpers, and related wiring).
 - PostgreSQL-only: no connectors or compatibility layers for other SQL databases.
 - Provide safe defaults (read-only unless explicitly enabled for destructive SQL).
-- **Mitigate PII / clinical leakage (best effort):** heuristic guard on `execute_sql` blocks wildcard projections and many sensitive-looking column names unless explicitly opted in (name-based heuristics can false positive or false negative). Opt-in: TOML `allow_access_to_pii_data`, env `ALLOW_ACCESS_TO_PII_DATA`, or single-DSN CLI **bare** `--allow-access-to-pii-data` (or `=true` / `1` / `yes`). **Destructive SQL** in single-DSN mode: same pattern with **`--allow-destructive-sql`**. Clinical naming profiles include HL7v2/FHIR/LOINC/SNOMED-style identifiers. See `docs/tools/execute-sql.mdx`, `docs/config/command-line.mdx`, and `CLAUDE.md`.
+- **Single-schema scope:** every row-returning tool requires a per-call `schema` and confines SQL to it; cross-schema and system-catalog references are rejected (`SCHEMA_SCOPE_VIOLATION`).
+- **Hard-exclude health & PII (best effort):** on `execute_sql` and custom tools, health/clinical data (HL7v2/FHIR/LOINC/SNOMED-style + medical heuristics), personal identifiers (names, email, national IDs, DOB, address), and wildcard projections are **always blocked** — name-based heuristics can false positive/negative. `allow_access_to_pii_data` does **not** unblock these; the **only** field it unblocks is the user's mobile/phone number (the Helium username). Opt-in: TOML `allow_access_to_pii_data`, env `ALLOW_ACCESS_TO_PII_DATA`, or single-DSN CLI **bare** `--allow-access-to-pii-data` (or `=true` / `1` / `yes`). **Destructive SQL** in single-DSN mode: same pattern with **`--allow-destructive-sql`**. See `docs/tools/execute-sql.mdx`, `docs/config/command-line.mdx`, and `CLAUDE.md`.
 
 ## Repository Landmarks
 
@@ -108,7 +111,7 @@ These tools are enabled by default per `[[sources]]` entry unless you whitelist 
 
 | Tool | Role |
 |------|------|
-| `execute_sql` | Run SQL (multi-statement supported); **attempts to mitigate** PII/clinical exposure via default guard (opt out via TOML/env/CLI `--allow-access-to-pii-data` in single-DSN mode); standards-aware profiles (`hl7v2`, `fhir`, `loinc`, `snomed`) |
+| `execute_sql` | Run SQL (multi-statement supported); requires a single target `schema`; **hard-excludes** health/clinical data (HL7v2/FHIR/LOINC/SNOMED), personal identifiers, and wildcard projections — `allow_access_to_pii_data` only unblocks the mobile/phone username |
 | `search_objects` | Discover schemas, tables, columns, indexes, routines (progressive detail) |
 | `query_insights` | Ranked statements from `pg_stat_statements` when available |
 | `schema_diff` | Compare schema metadata between two configured sources |
@@ -141,15 +144,16 @@ stateDiagram-v2
 1. Read `CLAUDE.md` before editing connectors/tools.
 2. Prefer tool-level changes in `src/tools/` over transport-layer changes.
 3. Keep `source_id` routing behavior backward compatible.
-4. When changing `execute_sql`, preserve PII guard semantics (`pii-sql-guard.ts`, `pii-heuristics.ts`, `PII_ACCESS_VIOLATION`).
+4. When changing `execute_sql`, preserve schema-scope enforcement (`sql-schema-scope.ts`, `SCHEMA_SCOPE_VIOLATION`) and PII/health guard semantics (`pii-sql-guard.ts`, `pii-heuristics.ts`, `PII_ACCESS_VIOLATION`) — never let `allow_access_to_pii_data` unblock anything but the mobile number.
 5. Run relevant tests (`pnpm test`, or targeted connector/integration tests).
 
 ## Tool Schema Examples
 
-`execute_sql` input (list explicit columns; `SELECT *` may be rejected while the PII guard is active—disable only with explicit policy: TOML, `ALLOW_ACCESS_TO_PII_DATA`, or bare `--allow-access-to-pii-data`):
+`execute_sql` input (`schema` is required; list explicit non-sensitive columns — `SELECT *`, health/clinical data, and personal identifiers are always rejected and cannot be enabled; only the mobile number is unblockable via `allow_access_to_pii_data`):
 
 ```json
 {
+  "schema": "public",
   "sql": "SELECT id, status FROM users LIMIT 10;"
 }
 ```

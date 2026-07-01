@@ -159,7 +159,7 @@ npx electric-elephant --max-rows 1000 --dsn "..."
 
 ## PII and clinical data guard
 
-The projection guard has **two tiers**: a hard exclusion that can never be overridden, and a soft guard for generic PII that an operator can opt out of.
+The projection guard has **two tiers**: a hard exclusion covering health/clinical data, personal identifiers, and wildcards — which can never be overridden — and a single overridable field, the user's mobile/phone number (the Helium username), which an operator can opt into.
 
 ### Hard exclusion (clinical/health data — cannot be overridden)
 

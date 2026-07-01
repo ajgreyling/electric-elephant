@@ -26,6 +26,17 @@ Custom tools are defined in your `dbhub.toml` configuration file. See the [TOML 
 
 See [TOML Configuration - Tool Options](/config/toml#tool-options) for detailed field descriptions, parameter types, and validation rules.
 
+<Warning>
+**Constraints enforced at registration.** A custom tool whose `statement` violates any of these fails at startup (the server will not register it):
+
+- **Single-schema scope** — the statement must stay within one schema; cross-schema and system-catalog (`information_schema`, `pg_catalog`) references are rejected. Callers pass a required `schema` argument (auto-added to every custom tool; you must not define a parameter named `schema`).
+- **No health/clinical data** — HL7v2, FHIR, LOINC, SNOMED, and medical-style projections are hard-excluded.
+- **No personal identifiers** — names, email, national IDs, DOB, address, etc. are hard-excluded. Only the user's mobile/phone number is permissible.
+- **No wildcards** — `SELECT *` / `table.*` is rejected (it could expose the above). List explicit columns.
+
+The examples below are written to satisfy these rules.
+</Warning>
+
 ## Examples
 
 ### Basic Query
@@ -37,7 +48,8 @@ Simple SELECT query with a single parameter:
 name = "get_user_by_id"
 description = "Retrieve user details by their unique ID"
 source = "production"
-statement = "SELECT id, name, email, created_at FROM users WHERE id = $1"
+# Non-sensitive columns only — names/email would be rejected as hard PII.
+statement = "SELECT id, status, created_at FROM users WHERE id = $1"
 
 [[tools.parameters]]
 name = "user_id"
@@ -52,14 +64,15 @@ Search query with optional limit parameter:
 ```toml
 [[tools]]
 name = "search_employees"
-description = "Search employees by name with configurable result limit"
+description = "Search employees by title with configurable result limit"
 source = "prod_pg"
-statement = "SELECT emp_no, first_name, last_name FROM employee WHERE first_name ILIKE '%' || $1 || '%' LIMIT $2"
+# Project non-PII columns only; you may filter on a name in WHERE (not projected).
+statement = "SELECT emp_no, title, hire_date FROM employee WHERE title ILIKE '%' || $1 || '%' LIMIT $2"
 
 [[tools.parameters]]
 name = "search_term"
 type = "string"
-description = "Name to search for (case-insensitive partial match)"
+description = "Title to search for (case-insensitive partial match)"
 
 [[tools.parameters]]
 name = "limit"
@@ -77,7 +90,7 @@ Query with optional status filter using enum validation:
 name = "list_orders"
 description = "List orders with optional status filter"
 source = "prod_pg"
-statement = "SELECT * FROM orders WHERE customer_id = $1 AND ($2::text IS NULL OR status = $2)"
+statement = "SELECT id, customer_id, status, total, created_at FROM orders WHERE customer_id = $1 AND ($2::text IS NULL OR status = $2)"
 
 [[tools.parameters]]
 name = "customer_id"
@@ -101,7 +114,7 @@ Electric Elephant supports PostgreSQL-style numbered placeholders (`$1`, `$2`, �
 name = "get_product"
 description = "Get product by ID"
 source = "postgres_db"
-statement = "SELECT * FROM products WHERE id = $1"
+statement = "SELECT id, sku, title, price FROM products WHERE id = $1"
 
 [[tools.parameters]]
 name = "product_id"
@@ -123,7 +136,7 @@ name = "search_users"
 description = "Search users with optional department filter"
 source = "production"
 # PostgreSQL: Use NULL check for optional parameters
-statement = "SELECT * FROM users WHERE ($1::text IS NULL OR department = $1) LIMIT $2"
+statement = "SELECT id, department, status FROM users WHERE ($1::text IS NULL OR department = $1) LIMIT $2"
 
 [[tools.parameters]]
 name = "department"
@@ -145,7 +158,7 @@ default = 50
 name = "get_orders_by_date_range"
 description = "Retrieve orders within a date range"
 source = "production"
-statement = "SELECT * FROM orders WHERE created_at BETWEEN $1 AND $2 ORDER BY created_at DESC"
+statement = "SELECT id, customer_id, status, total, created_at FROM orders WHERE created_at BETWEEN $1 AND $2 ORDER BY created_at DESC"
 
 [[tools.parameters]]
 name = "start_date"
@@ -210,7 +223,7 @@ readonly = true
 name = "get_user_by_id"
 source = "prod_pg"
 description = "Get user details"
-statement = "SELECT * FROM users WHERE id = $1"
+statement = "SELECT id, status, created_at FROM users WHERE id = $1"
 [[tools.parameters]]
 name = "user_id"
 type = "integer"
@@ -231,7 +244,7 @@ max_rows = 1000  # Hard limit on SELECT results
 name = "search_users"
 source = "prod_pg"
 description = "Search users with limit"
-statement = "SELECT * FROM users WHERE active = $1 LIMIT $2"
+statement = "SELECT id, department, status FROM users WHERE active = $1 LIMIT $2"
 # Even if $2 is 5000, max_rows=1000 will cap the results
 ```
 
@@ -244,6 +257,9 @@ Tools are validated when the server starts:
 - Tool names must be unique and cannot conflict with built-in tools (`execute_sql`, `search_objects`)
 - Parameter count must match SQL placeholders
 - Parameter types must be valid
+- No parameter may be named `schema` (reserved for the auto-added target-schema argument)
+- The `statement` must be single-schema scoped (no cross-schema or system-catalog references)
+- The `statement` must not project health/clinical data, personal identifiers, or wildcards (`SELECT *`)
 
 If validation fails, the server will not start and will display detailed error messages.
 
@@ -258,8 +274,7 @@ Custom tools return the same response format as `execute_sql`:
   "rows": [
     {
       "id": 12345,
-      "name": "Alice Johnson",
-      "email": "alice@example.com",
+      "status": "active",
       "created_at": "2024-01-15T10:30:00Z"
     }
   ],
