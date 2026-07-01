@@ -4,6 +4,11 @@ title: "execute_sql"
 
 Execute SQL queries and statements on your database with support for transactions, multiple statements, and safety controls.
 
+## Parameters
+
+- `schema` (required): Target schema for this query. Cross-schema SQL is rejected even when PII or destructive overrides are enabled.
+- `sql` (required): SQL to execute (multiple statements separated by `;`)
+
 ## Features
 
 - **Single statements**: Execute a single SQL query or command
@@ -11,7 +16,7 @@ Execute SQL queries and statements on your database with support for transaction
 - **Transactions**: Wrap operations in `BEGIN`/`COMMIT` blocks for atomic execution
 - **Read-only mode**: When enabled with `--readonly` flag, only SELECT and read-only operations are allowed
 - **Row limiting**: Configure `--max-rows` to limit SELECT query results
-- **PII/clinical guard**: By default, queries that use `SELECT *` / `table.*` or select columns matching PII or sensitive clinical heuristics may be rejected unless you opt in (see below)
+- **PII/clinical guard**: Clinical/health data (HL7v2, FHIR, LOINC, SNOMED, medical fields), wildcard projections (`SELECT *` / `table.*`), and personal identifiers (names, email, national IDs, DOB, address) are **hard-excluded** and can never be returned. The **only** overridable field is the user's mobile/phone number (the Helium username), opted into per tool (see below)
 
 ## Single Query
 
@@ -154,45 +159,57 @@ npx electric-elephant --max-rows 1000 --dsn "..."
 
 ## PII and clinical data guard
 
-For `execute_sql`, **`allow_access_to_pii_data` defaults to false** (fail-safe): the server can block queries before they run when the projection looks like it would expose personally identifiable information or sensitive clinical fields — including identity/contact columns, HIV/TB and related diagnostic markers, blood and common lab panels, pathology and chart-note style names, camelCase identifiers (e.g. HIV status fields), wildcard `SELECT *`, or `schema.table.*`.
+The projection guard has **two tiers**: a hard exclusion that can never be overridden, and a soft guard for generic PII that an operator can opt out of.
 
-You can optionally scope heuristic matching with:
+### Hard exclusion (clinical/health data — cannot be overridden)
 
-```toml
-[[tools]]
-name = "execute_sql"
-source = "production"
-clinical_standards = ["hl7v2", "fhir", "loinc", "snomed"]
-```
+Clinical and health data is **always blocked** and can never be returned by this server, regardless of `allow_access_to_pii_data`, `clinical_standards`, or any CLI/env flag. This covers projections that match HL7v2/LIS, FHIR, LOINC, or SNOMED naming, plus medical heuristics (HIV/TB and related markers, blood and lab panels, pathology/chart-note names, diagnoses, medications, etc.).
 
-- Supported values: `hl7v2`, `fhir`, `loinc`, `snomed`
-- If omitted, **all standards are enabled by default**
-- The configured standards only affect name-based heuristic matching and do not bypass wildcard blocking
+Wildcard projections (`SELECT *`, `table.*`, `schema.table.*`) are **also hard-excluded**: a wildcard cannot be statically proven free of clinical columns, so it is always rejected — even with `allow_access_to_pii_data = true`. List explicit, non-clinical columns instead.
 
-Examples of covered naming styles:
+Examples of hard-excluded naming styles:
 - HL7v2/LIS: `hl7messagecontrolid`, `elzId`, `orderID`, `barcode`, `testtype_fields`, `resultForAction`
 - FHIR: `subject_reference`, `observation_value`, `condition_code`
 - LOINC: `loinc_code`, `loinc_number`
 - SNOMED: `snomed_ct_code`, `concept_id`
+- Medical heuristics: `hiv_status`, `blood_glucose`, `hemoglobin_a1c`, `chief_complaint`, `diagnosis`
 
-Heuristics are name-based and may block or allow incorrectly for unusual schemas; narrow projections or opt in only with explicit policy.
-
-When a query is blocked, the tool returns an error with code **`PII_ACCESS_VIOLATION`**, including:
-
-- **Reason**: `wildcard_projection` or `suspected_pii_or_clinical_column`
-- **Matched identifiers** (capped list), when applicable
-- **What to do**: Narrow the `SELECT` list to non-sensitive columns, or set `allow_access_to_pii_data = true` on the `execute_sql` tool only after explicit policy approval.
-
-Enable access only when your deployment explicitly allows returning that class of data:
+The `clinical_standards` TOML field is retained for backward compatibility, but it **no longer narrows or disables** clinical detection — every clinical standard is always evaluated for the hard exclusion:
 
 ```toml
 [[tools]]
 name = "execute_sql"
 source = "production"
-allow_access_to_pii_data = true
+# clinical_standards is accepted but does not weaken the hard exclusion
+clinical_standards = ["hl7v2", "fhir", "loinc", "snomed"]
 ```
 
-**Configuration:** [TOML](/config/toml#allow_access_to_pii_data) `allow_access_to_pii_data`, or in single-DSN mode `ALLOW_ACCESS_TO_PII_DATA` / bare `--allow-access-to-pii-data` (or `=true` / `1` / `yes`; see [command-line](/config/command-line#pii-guard-cli)). HTTP API responses list the effective value per source under each tool object as `allow_access_to_pii_data`.
+### Hard-excluded PII (never overridable)
+
+Almost all personal data is also hard-excluded and can never be returned: names, email, national identifiers (SSN, tax ID, passport, national ID), dates of birth, addresses, patient/hospital numbers, and similar direct identifiers. `allow_access_to_pii_data` does **not** unblock these.
+
+### The only overridable field: mobile / phone number
+
+The single identifier the override applies to is the user's **mobile / phone number** — this is the username on Helium. When `allow_access_to_pii_data` is enabled for a tool, mobile/phone columns (e.g. `mobile`, `mobile_number`, `phone`, `msisdn`, `cellphone`) become selectable. Everything else — health data, wildcards, and all other PII — stays blocked.
+
+```toml
+[[tools]]
+name = "execute_sql"
+source = "production"
+allow_access_to_pii_data = true   # unblocks the mobile/phone username ONLY; all other PII and health data stay hard-excluded
+```
+
+By default (`allow_access_to_pii_data = false`) even the mobile/phone number is blocked. Heuristics are name-based and may block or allow incorrectly for unusual schemas; narrow projections or opt in only with explicit policy.
+
+### Error shape
+
+When a query is blocked, the tool returns an error with code **`PII_ACCESS_VIOLATION`**, including:
+
+- **Reason**: `clinical_health_data_blocked` (health data), `hard_pii_blocked` (names/email/national IDs/DOB/address/etc.), or `wildcard_clinical_risk` (wildcards) — all non-overridable; or `suspected_pii_or_clinical_column` for the overridable mobile/phone number when access is not enabled
+- **Matched identifiers** (capped list), when applicable
+- **What to do**: Remove health and personal columns and wildcards from the `SELECT`/`RETURNING` list. Only the mobile/phone username can be permitted, via `allow_access_to_pii_data = true`, after explicit policy approval.
+
+**Configuration:** [TOML](/config/toml#allow_access_to_pii_data) `allow_access_to_pii_data`, or in single-DSN mode `ALLOW_ACCESS_TO_PII_DATA` / bare `--allow-access-to-pii-data` (or `=true` / `1` / `yes`; see [command-line](/config/command-line#pii-guard-cli)). This flag unblocks only the mobile/phone username; health data, wildcards, and all other PII remain hard-excluded. HTTP API responses list the effective value per source under each tool object as `allow_access_to_pii_data`.
 
 ## Selective Tool Exposure
 

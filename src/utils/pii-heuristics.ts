@@ -1,13 +1,40 @@
 /**
  * Heuristic matching for suspected PII and sensitive clinical identifiers in SQL projections.
- * Used when execute_sql runs with allow_access_to_pii_data !== true (fail-closed default).
+ *
+ * Policy (see CLAUDE.md): health/clinical data and almost all PII are HARD-EXCLUDED
+ * and can never be returned. The ONLY field the `allow_access_to_pii_data` override
+ * unblocks is the user's mobile/phone number — this is the username on Helium.
  */
 
 const MAX_MATCHES = 5;
 export type ClinicalStandard = "hl7v2" | "fhir" | "loinc" | "snomed";
 export const DEFAULT_CLINICAL_STANDARDS: ClinicalStandard[] = ["hl7v2", "fhir", "loinc", "snomed"];
 
-const BASE_DIRECT_PHRASES: string[] = [
+/**
+ * The ONLY overridable field class: mobile / phone number (the Helium username).
+ * When allow_access_to_pii_data is enabled, projections matching these — and
+ * nothing else — are permitted.
+ */
+const OVERRIDABLE_PHRASES: string[] = [
+  "mobile",
+  "mobile number",
+  "mobile no",
+  "phone",
+  "phone number",
+  "phone no",
+  "cell",
+  "cellphone",
+  "cell phone",
+  "msisdn",
+  "contact number",
+];
+
+/**
+ * Generic PII that is HARD-EXCLUDED (never overridable): names, email, national
+ * identifiers, dates of birth, addresses, and other direct identifiers. Mobile /
+ * phone is intentionally NOT here — it lives in OVERRIDABLE_PHRASES.
+ */
+const HARD_PII_PHRASES: string[] = [
   "identifier",
   "identifier fields",
   "patient id",
@@ -17,8 +44,6 @@ const BASE_DIRECT_PHRASES: string[] = [
   "surname",
   "sex",
   "email",
-  "phone",
-  "mobile",
   "ssn",
   "tax id",
   "passport",
@@ -317,28 +342,23 @@ function weakPairMatch(norm: string, medicalContextTokens: Set<string>): boolean
   return false;
 }
 
-function getEnabledClinicalStandards(
-  enabledStandards?: ClinicalStandard[]
-): ClinicalStandard[] {
-  if (!enabledStandards || enabledStandards.length === 0) {
-    return [...DEFAULT_CLINICAL_STANDARDS];
-  }
-  return [...new Set(enabledStandards)];
-}
-
-function buildDirectPhrases(enabledStandards?: ClinicalStandard[]): string[] {
-  const phrases: string[] = [...BASE_DIRECT_PHRASES];
-  const active = getEnabledClinicalStandards(enabledStandards);
-  for (const standard of active) {
+/**
+ * Clinical/health phrases and context tokens are hard-excluded: they are ALWAYS
+ * evaluated across every clinical standard and can never be unblocked via
+ * allow_access_to_pii_data or a narrowed clinical_standards list. These come from
+ * the per-standard clinical sets plus the medical weak-pair context tokens.
+ */
+function buildAllClinicalPhrases(): string[] {
+  const phrases: string[] = [];
+  for (const standard of DEFAULT_CLINICAL_STANDARDS) {
     phrases.push(...DIRECT_PHRASES_BY_STANDARD[standard]);
   }
   return phrases;
 }
 
-function buildMedicalContextTokenSet(enabledStandards?: ClinicalStandard[]): Set<string> {
+function buildAllMedicalContextTokenSet(): Set<string> {
   const tokens = new Set(BASE_MEDICAL_CONTEXT_TOKENS);
-  const active = getEnabledClinicalStandards(enabledStandards);
-  for (const standard of active) {
+  for (const standard of DEFAULT_CLINICAL_STANDARDS) {
     for (const token of MEDICAL_CONTEXT_TOKENS_BY_STANDARD[standard]) {
       tokens.add(token);
     }
@@ -347,18 +367,18 @@ function buildMedicalContextTokenSet(enabledStandards?: ClinicalStandard[]): Set
 }
 
 /**
- * Returns up to MAX_MATCHES human-readable match hints for logging/JSON details.
+ * Returns up to MAX_MATCHES human-readable match hints for CLINICAL/HEALTH data
+ * (HL7v2, FHIR, LOINC, SNOMED, and medical-context heuristics). This is the
+ * hard-exclusion set: it always runs and always uses every clinical standard,
+ * independent of allow_access_to_pii_data or clinical_standards configuration.
  */
-export function findPiiMatchesInProjectionText(
-  text: string,
-  enabledStandards?: ClinicalStandard[]
-): string[] {
+export function findClinicalMatchesInProjectionText(text: string): string[] {
   const norm = normalizePiiMatchText(text);
   if (!norm) { return []; }
-  const directPhrases = buildDirectPhrases(enabledStandards);
-  const medicalContextTokens = buildMedicalContextTokenSet(enabledStandards);
+  const clinicalPhrases = buildAllClinicalPhrases();
+  const medicalContextTokens = buildAllMedicalContextTokenSet();
   const matches: string[] = [];
-  for (const phrase of directPhrases) {
+  for (const phrase of clinicalPhrases) {
     if (directPhraseMatch(norm, phrase)) {
       matches.push(phrase);
       if (matches.length >= MAX_MATCHES) { return matches; }
@@ -367,6 +387,59 @@ export function findPiiMatchesInProjectionText(
   if (weakPairMatch(norm, medicalContextTokens)) {
     matches.push("context:weak_token+medical_context");
     if (matches.length >= MAX_MATCHES) { return matches; }
+  }
+  return matches;
+}
+
+/**
+ * Returns up to MAX_MATCHES human-readable match hints for HARD-EXCLUDED generic
+ * PII: names, email, national identifiers, dates of birth, addresses, and other
+ * direct identifiers. This set can NEVER be unblocked by allow_access_to_pii_data.
+ * Mobile / phone number is deliberately excluded here (see the overridable set).
+ */
+export function findHardPiiMatchesInProjectionText(text: string): string[] {
+  const norm = normalizePiiMatchText(text);
+  if (!norm) { return []; }
+  // A projection that is the overridable mobile/phone field must not be counted
+  // as hard PII, even if a substring coincidentally overlaps a hard phrase.
+  if (isOverridableMobileText(norm)) { return []; }
+  const matches: string[] = [];
+  for (const phrase of HARD_PII_PHRASES) {
+    if (directPhraseMatch(norm, phrase)) {
+      matches.push(phrase);
+      if (matches.length >= MAX_MATCHES) { return matches; }
+    }
+  }
+  return matches;
+}
+
+function isOverridableMobileText(norm: string): boolean {
+  for (const phrase of OVERRIDABLE_PHRASES) {
+    if (directPhraseMatch(norm, phrase)) { return true; }
+  }
+  return false;
+}
+
+/**
+ * Returns match hints for the ONLY overridable PII class: mobile / phone number
+ * (the Helium username). This is evaluated only to permit these fields when
+ * allow_access_to_pii_data is enabled; every other identifier stays hard-excluded.
+ *
+ * The `_enabledStandards` parameter is retained for signature compatibility and
+ * is unused (clinical standards never affect this set).
+ */
+export function findPiiMatchesInProjectionText(
+  text: string,
+  _enabledStandards?: ClinicalStandard[]
+): string[] {
+  const norm = normalizePiiMatchText(text);
+  if (!norm) { return []; }
+  const matches: string[] = [];
+  for (const phrase of OVERRIDABLE_PHRASES) {
+    if (directPhraseMatch(norm, phrase)) {
+      matches.push(phrase);
+      if (matches.length >= MAX_MATCHES) { return matches; }
+    }
   }
   return matches;
 }

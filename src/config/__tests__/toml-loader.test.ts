@@ -246,4 +246,16 @@ clinical_standards = ["hl7v2", "openEHR"]
 
     expect(() => loadTomlConfig()).toThrow("invalid clinical_standards value");
   });
+
+  it("rejects comma-separated search_path on sources", () => {
+    const tomlContent = `
+[[sources]]
+id = "pg"
+dsn = "postgres://user:pass@localhost:5432/app"
+search_path = "myschema,public"
+`;
+    fs.writeFileSync(path.join(tempDir, "dbhub.toml"), tomlContent);
+
+    expect(() => loadTomlConfig()).toThrow(/Only a single schema is allowed/);
+  });
 });

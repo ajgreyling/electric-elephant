@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { ToolConfig, ParameterConfig } from "../types/config.js";
+import { ToolConfig, ParameterConfig, CustomToolConfig } from "../types/config.js";
 import { ConnectorManager } from "../connectors/manager.js";
 import {
   createToolSuccessResponse,
@@ -16,6 +16,11 @@ import {
   createReadonlyViolationMessage,
   trackToolRequest,
 } from "../utils/tool-handler-helpers.js";
+import { validateSqlSchemaScope } from "../utils/sql-schema-scope.js";
+import { validateSqlPiiAccessGuard } from "../utils/pii-sql-guard.js";
+import { schemaExists, validateTargetSchemaArg } from "../utils/target-schema.js";
+
+const SCHEMA_PARAM_NAME = "schema";
 
 /**
  * Build a Zod schema from parameter definitions
@@ -33,6 +38,12 @@ export function buildZodSchemaFromParameters(
   const schemaShape: Record<string, z.ZodTypeAny> = {};
 
   for (const param of parameters) {
+    if (param.name === SCHEMA_PARAM_NAME) {
+      throw new Error(
+        `Custom tool parameter name '${SCHEMA_PARAM_NAME}' is reserved for the mandatory target schema argument`
+      );
+    }
+
     let fieldSchema: z.ZodTypeAny;
 
     // Build base schema based on type
@@ -93,11 +104,22 @@ export function buildInputSchema(parameters: ParameterConfig[] | undefined): {
   required?: string[];
 } {
   // Convert Zod schema to JSON Schema-like format for MCP
-  const properties: Record<string, any> = {};
-  const required: string[] = [];
+  const properties: Record<string, any> = {
+    [SCHEMA_PARAM_NAME]: {
+      type: "string",
+      description: "Target schema for this query (required)",
+    },
+  };
+  const required: string[] = [SCHEMA_PARAM_NAME];
 
   if (parameters) {
     for (const param of parameters) {
+      if (param.name === SCHEMA_PARAM_NAME) {
+        throw new Error(
+          `Custom tool parameter name '${SCHEMA_PARAM_NAME}' is reserved for the mandatory target schema argument`
+        );
+      }
+
       const propSchema: any = {
         description: param.description,
       };
@@ -138,11 +160,8 @@ export function buildInputSchema(parameters: ParameterConfig[] | undefined): {
   const schema: any = {
     type: "object",
     properties,
+    required,
   };
-
-  if (required.length > 0) {
-    schema.required = required;
-  }
 
   return schema;
 }
@@ -153,9 +172,11 @@ export function buildInputSchema(parameters: ParameterConfig[] | undefined): {
  * @returns Handler function compatible with MCP server.registerTool
  */
 export function createCustomToolHandler(toolConfig: ToolConfig) {
-  // Build Zod schema shape for MCP registration
-  const zodSchemaShape = buildZodSchemaFromParameters(toolConfig.parameters);
-  // Wrap in z.object() for validation
+  const customConfig = toolConfig as CustomToolConfig;
+  const zodSchemaShape = {
+    [SCHEMA_PARAM_NAME]: z.string().min(1).describe("Target schema for this query (required)"),
+    ...buildZodSchemaFromParameters(customConfig.parameters),
+  };
   const zodSchema = z.object(zodSchemaShape);
 
   return async (args: any, extra: any) => {
@@ -165,47 +186,77 @@ export function createCustomToolHandler(toolConfig: ToolConfig) {
     let paramValues: any[] = [];
 
     try {
-      // 1. Validate arguments against Zod schema
       const validatedArgs = zodSchema.parse(args);
+      const { schema, ...toolArgs } = validatedArgs as { schema: string; [key: string]: unknown };
 
-      // 2. Ensure source is connected (handles lazy connections)
-      await ConnectorManager.ensureConnected(toolConfig.source);
+      await ConnectorManager.ensureConnected(customConfig.source);
+      const connector = ConnectorManager.getCurrentConnector(customConfig.source);
 
-      // 3. Get connector for the specified source
-      const connector = ConnectorManager.getCurrentConnector(toolConfig.source);
+      const allowlistResult = validateTargetSchemaArg(schema, customConfig.allowed_schemas);
+      if (!allowlistResult.ok) {
+        errorMessage = allowlistResult.message;
+        success = false;
+        return createToolErrorResponse(errorMessage, "SCHEMA_SCOPE_VIOLATION", {
+          reason: allowlistResult.reason,
+        });
+      }
 
-      // 4. Build execute options from tool configuration
+      if (!(await schemaExists(connector, schema))) {
+        errorMessage = `Schema '${schema}' does not exist`;
+        success = false;
+        return createToolErrorResponse(errorMessage, "SCHEMA_NOT_FOUND");
+      }
+
+      const scopeResult = validateSqlSchemaScope(customConfig.statement, schema);
+      if (!scopeResult.ok) {
+        errorMessage = scopeResult.message;
+        success = false;
+        return createToolErrorResponse(errorMessage, "SCHEMA_SCOPE_VIOLATION", {
+          reason: scopeResult.reason,
+          reference: scopeResult.reference,
+        });
+      }
+
+      // Clinical/health data (HL7v2, FHIR, LOINC, SNOMED, medical fields) is
+      // hard-excluded from every row-returning tool. Passing allowAccess=true
+      // runs only the un-overridable clinical + wildcard-risk checks, not the
+      // generic-PII checks (custom tool statements are curated by the operator).
+      const piiGuard = validateSqlPiiAccessGuard(customConfig.statement, true);
+      if (!piiGuard.ok) {
+        errorMessage = piiGuard.message;
+        success = false;
+        return createToolErrorResponse(piiGuard.message, "PII_ACCESS_VIOLATION", {
+          reason: piiGuard.reason,
+          matches: piiGuard.matches,
+        });
+      }
+
       const executeOptions = {
-        readonly: toolConfig.readonly,
-        maxRows: toolConfig.max_rows,
+        readonly: customConfig.readonly,
+        maxRows: customConfig.max_rows,
+        targetSchema: schema,
       };
 
-      // 5. Check if SQL is allowed based on readonly mode
       const isReadonly = executeOptions.readonly === true;
-      if (isReadonly && !isAllowedInReadonlyMode(toolConfig.statement, connector.id)) {
-        errorMessage = createReadonlyViolationMessage(toolConfig.name, toolConfig.source, connector.id);
+      if (isReadonly && !isAllowedInReadonlyMode(customConfig.statement, connector.id)) {
+        errorMessage = createReadonlyViolationMessage(customConfig.name, customConfig.source, connector.id);
         success = false;
         return createToolErrorResponse(errorMessage, "READONLY_VIOLATION");
       }
 
-      // 6. Map parameters to array format for SQL execution
-      paramValues = mapArgumentsToArray(
-        toolConfig.parameters,
-        validatedArgs
-      );
+      paramValues = mapArgumentsToArray(customConfig.parameters, toolArgs);
 
-      // 7. Execute SQL with parameters
       const result = await connector.executeSQL(
-        toolConfig.statement,
+        customConfig.statement,
         executeOptions,
         paramValues
       );
 
-      // 8. Build response data
       const responseData = {
         rows: result.rows,
         count: result.rowCount,
-        source_id: toolConfig.source,
+        source_id: customConfig.source,
+        schema,
       };
 
       return createToolSuccessResponse(responseData);
@@ -213,23 +264,20 @@ export function createCustomToolHandler(toolConfig: ToolConfig) {
       success = false;
       errorMessage = (error as Error).message;
 
-      // Provide helpful error messages for common issues
       if (error instanceof z.ZodError) {
         const issues = error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
         errorMessage = `Parameter validation failed: ${issues}`;
       } else {
-        // Add SQL context to execution errors for debugging
-        errorMessage = `${errorMessage}\n\nSQL: ${toolConfig.statement}\nParameters: ${JSON.stringify(paramValues)}`;
+        errorMessage = `${errorMessage}\n\nSQL: ${customConfig.statement}\nParameters: ${JSON.stringify(paramValues)}`;
       }
 
       return createToolErrorResponse(errorMessage, "EXECUTION_ERROR");
     } finally {
-      // Track the request
       trackToolRequest(
         {
-          sourceId: toolConfig.source,
-          toolName: toolConfig.name,
-          sql: toolConfig.statement,
+          sourceId: customConfig.source,
+          toolName: customConfig.name,
+          sql: customConfig.statement,
         },
         startTime,
         extra,

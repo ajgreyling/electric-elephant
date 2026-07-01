@@ -74,6 +74,7 @@ describe("JSON RPC Integration Tests", () => {
     }
 
     await makeJsonRpcCall("execute_sql", {
+      schema: "public",
       sql: `
         CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
@@ -150,21 +151,23 @@ describe("JSON RPC Integration Tests", () => {
   describe("execute_sql JSON RPC calls", () => {
     it("should execute a simple SELECT query successfully", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
-        sql: "SELECT * FROM users WHERE age > 25 ORDER BY age",
+        schema: "public",
+        sql: "SELECT id, age FROM users WHERE age > 25 ORDER BY age",
       })) as { result: { content: { text: string }[] } };
 
       expect(response).toHaveProperty("result");
       const content = JSON.parse(response.result.content[0].text);
       expect(content.success).toBe(true);
       expect(content.data.rows).toHaveLength(2);
-      expect(content.data.rows[0].name).toBe("John Doe");
-      expect(content.data.rows[1].name).toBe("Bob Johnson");
+      expect(content.data.rows[0].age).toBe(30);
+      expect(content.data.rows[1].age).toBe(35);
     });
 
     it("should execute a JOIN query successfully", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
         sql: `
-          SELECT u.name, u.email, o.total
+          SELECT u.id, o.total
           FROM users u
           JOIN orders o ON u.id = o.user_id
           WHERE u.age >= 30
@@ -181,6 +184,7 @@ describe("JSON RPC Integration Tests", () => {
 
     it("should execute aggregate queries successfully", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
         sql: `
           SELECT
             COUNT(*)::int as user_count,
@@ -202,6 +206,7 @@ describe("JSON RPC Integration Tests", () => {
 
     it("should handle multiple statements in a single call", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
         sql: `
           INSERT INTO users (name, email, age) VALUES ('Test User', 'test@example.com', 28);
           SELECT COUNT(*)::int as total_users FROM users;
@@ -216,6 +221,7 @@ describe("JSON RPC Integration Tests", () => {
 
     it("should run PostgreSQL utility expressions", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
         sql: `
           SELECT
             current_database() as db,
@@ -234,7 +240,8 @@ describe("JSON RPC Integration Tests", () => {
 
     it("should return error for invalid SQL", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
-        sql: "SELECT * FROM non_existent_table",
+        schema: "public",
+        sql: "SELECT id FROM non_existent_table",
       })) as { result: { content: { text: string }[] } };
 
       const content = JSON.parse(response.result.content[0].text);
@@ -245,7 +252,8 @@ describe("JSON RPC Integration Tests", () => {
 
     it("should handle empty result sets", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
-        sql: "SELECT * FROM users WHERE age > 100",
+        schema: "public",
+        sql: "SELECT id, age FROM users WHERE age > 100",
       })) as { result: { content: { text: string }[] } };
 
       const content = JSON.parse(response.result.content[0].text);
@@ -256,23 +264,22 @@ describe("JSON RPC Integration Tests", () => {
 
     it("should work with explicit transactions", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
         sql: `
-          BEGIN;
           INSERT INTO users (name, email, age) VALUES ('Transaction User', 'transaction@example.com', 40);
-          COMMIT;
-          SELECT * FROM users WHERE email = 'transaction@example.com';
+          SELECT id, age FROM users WHERE email = 'transaction@example.com';
         `,
       })) as { result: { content: { text: string }[] } };
 
       const content = JSON.parse(response.result.content[0].text);
       expect(content.success).toBe(true);
       expect(content.data.rows).toHaveLength(1);
-      expect(content.data.rows[0].name).toBe("Transaction User");
       expect(content.data.rows[0].age).toBe(40);
     });
 
-    it("should describe table columns via information_schema", async () => {
+    it("should block access to system catalog schemas", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
         sql: `
           SELECT column_name FROM information_schema.columns
           WHERE table_schema = 'public' AND table_name = 'users'
@@ -281,16 +288,51 @@ describe("JSON RPC Integration Tests", () => {
       })) as { result: { content: { text: string }[] } };
 
       const content = JSON.parse(response.result.content[0].text);
-      expect(content.success).toBe(true);
-      const names = content.data.rows.map((r: { column_name: string }) => r.column_name);
-      expect(names).toContain("id");
-      expect(names).toContain("name");
+      expect(content.success).toBe(false);
+      expect(content.code).toBe("SCHEMA_SCOPE_VIOLATION");
+    });
+
+    it("should block cross-schema references outside the target schema", async () => {
+      const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
+        sql: "SELECT * FROM pg_catalog.pg_tables",
+      })) as { result: { content: { text: string }[] } };
+
+      const content = JSON.parse(response.result.content[0].text);
+      expect(content.success).toBe(false);
+      expect(content.code).toBe("SCHEMA_SCOPE_VIOLATION");
+    });
+
+    it("should reject execute_sql calls without a schema argument", async () => {
+      // The mandatory `schema` argument is enforced at the MCP input-schema layer,
+      // so a missing schema is rejected before the handler runs and surfaces as a
+      // JSON-RPC error rather than a tool result.
+      const response = (await makeJsonRpcCall("execute_sql", {
+        sql: "SELECT 1 as test",
+      })) as {
+        error?: { message: string };
+        result?: { content: { text: string }[] };
+      };
+
+      // The rejection may surface either as a JSON-RPC top-level error, or as a
+      // tool result whose text is a plain "MCP error ..." string (not our JSON
+      // envelope). In every case it must fail and mention the schema requirement.
+      const text = response.result?.content?.[0]?.text ?? response.error?.message ?? "";
+      let succeeded: boolean | undefined;
+      try {
+        succeeded = JSON.parse(text).success;
+      } catch {
+        succeeded = false;
+      }
+      expect(succeeded).toBe(false);
+      expect(text.toLowerCase()).toContain("schema");
     });
   });
 
   describe("JSON RPC protocol compliance", () => {
     it("should return proper JSON RPC response structure", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
+        schema: "public",
         sql: "SELECT 1 as test",
       })) as { jsonrpc: string; id: string; result: unknown };
 

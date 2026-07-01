@@ -14,13 +14,24 @@ describe("pii-sql-guard", () => {
     const r = validateSqlPiiAccessGuard("SELECT * FROM patients", false);
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.reason).toBe("wildcard_projection");
+      expect(r.reason).toBe("wildcard_clinical_risk");
     }
   });
 
-  it("blocks suspected PII/clinical columns", () => {
+  it("blocks generic PII columns (email, tax_id) as hard-excluded even when access denied", () => {
     const r = validateSqlPiiAccessGuard(
-      "SELECT id, email, blood_glucose FROM labs",
+      "SELECT id, email, tax_id FROM customers",
+      false
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe("hard_pii_blocked");
+    }
+  });
+
+  it("blocks mobile/phone (the overridable field) when access is denied", () => {
+    const r = validateSqlPiiAccessGuard(
+      "SELECT id, mobile_number FROM users",
       false
     );
     expect(r.ok).toBe(false);
@@ -29,14 +40,25 @@ describe("pii-sql-guard", () => {
     }
   });
 
-  it("blocks eLabs HL7/clinical payload fields", () => {
+  it("blocks clinical/health columns as hard-excluded", () => {
+    const r = validateSqlPiiAccessGuard(
+      "SELECT id, blood_glucose FROM labs",
+      false
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe("clinical_health_data_blocked");
+    }
+  });
+
+  it("blocks eLabs HL7/clinical payload fields as hard-excluded", () => {
     const r = validateSqlPiiAccessGuard(
       "SELECT barcode, orderID, hl7messagecontrolid, resultForAction FROM results_integration",
       false
     );
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.reason).toBe("suspected_pii_or_clinical_column");
+      expect(r.reason).toBe("clinical_health_data_blocked");
     }
   });
 
@@ -48,74 +70,143 @@ describe("pii-sql-guard", () => {
     expect(r.ok).toBe(false);
   });
 
-  describe("guard disabled (allowAccess true)", () => {
-    it("allows wildcard SELECT *", () => {
-      expect(validateSqlPiiAccessGuard("SELECT * FROM patients", true)).toEqual({ ok: true });
+  describe("hard exclusion cannot be overridden by allow_access_to_pii_data", () => {
+    it("still blocks wildcard SELECT * even when access is allowed", () => {
+      const r = validateSqlPiiAccessGuard("SELECT * FROM patients", true);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("wildcard_clinical_risk");
+      }
     });
 
-    it("allows table.* projections", () => {
-      expect(validateSqlPiiAccessGuard("SELECT u.* FROM users u", true)).toEqual({ ok: true });
+    it("still blocks table.* projections even when access is allowed", () => {
+      const r = validateSqlPiiAccessGuard("SELECT u.* FROM users u", true);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("wildcard_clinical_risk");
+      }
     });
 
-    it("allows suspected PII and clinical column names", () => {
-      expect(
-        validateSqlPiiAccessGuard(
-          "SELECT id, email, blood_glucose, tax_id FROM patient_record",
-          true
-        )
-      ).toEqual({ ok: true });
+    it("still blocks clinical/health columns even when access is allowed", () => {
+      const r = validateSqlPiiAccessGuard(
+        "SELECT id, blood_glucose FROM patient_record",
+        true
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("clinical_health_data_blocked");
+      }
     });
 
-    it("allows eLabs HL7-style payload columns", () => {
-      expect(
-        validateSqlPiiAccessGuard(
-          "SELECT barcode, orderID, hl7messagecontrolid, resultForAction FROM results_integration",
-          true
-        )
-      ).toEqual({ ok: true });
+    it("still blocks eLabs HL7-style payload columns even when access is allowed", () => {
+      const r = validateSqlPiiAccessGuard(
+        "SELECT barcode, orderID, hl7messagecontrolid, resultForAction FROM results_integration",
+        true
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("clinical_health_data_blocked");
+      }
     });
 
-    it("allows RETURNING lists that would be blocked when guard is on", () => {
-      expect(
-        validateSqlPiiAccessGuard(
-          `UPDATE users SET name = 'x' WHERE id = 1 RETURNING email, *`,
-          true
-        )
-      ).toEqual({ ok: true });
+    it("still blocks clinical fields in RETURNING even when access is allowed", () => {
+      const r = validateSqlPiiAccessGuard(
+        `UPDATE labs SET reviewed = true WHERE id = 1 RETURNING hiv_status`,
+        true
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("clinical_health_data_blocked");
+      }
     });
 
-    it("allows multi-statement batches that include PII projections", () => {
-      expect(
-        validateSqlPiiAccessGuard("SELECT id FROM t; SELECT email FROM u", true)
-      ).toEqual({ ok: true });
+    it("blocks clinical data hidden inside a subquery even when access is allowed", () => {
+      const r = validateSqlPiiAccessGuard(
+        "SELECT id, (SELECT hiv_status FROM labs l WHERE l.pid = p.id) AS s FROM patients p",
+        true
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("clinical_health_data_blocked");
+      }
+    });
+
+    it("blocks clinical data in any statement of a batch even when access is allowed", () => {
+      const r = validateSqlPiiAccessGuard(
+        "SELECT id FROM t; SELECT loinc_code FROM observations",
+        true
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("clinical_health_data_blocked");
+      }
     });
   });
 
-  it("blocks FHIR/LOINC/SNOMED columns by default (all standards enabled)", () => {
+  describe("only mobile/phone is overridable by allow_access_to_pii_data", () => {
+    it("allows mobile/phone number when access is allowed", () => {
+      expect(
+        validateSqlPiiAccessGuard(
+          "SELECT id, mobile_number, phone FROM users",
+          true
+        )
+      ).toEqual({ ok: true });
+    });
+
+    it("allows mobile in RETURNING when access is allowed", () => {
+      expect(
+        validateSqlPiiAccessGuard(
+          `UPDATE users SET verified = true WHERE id = 1 RETURNING mobile_number`,
+          true
+        )
+      ).toEqual({ ok: true });
+    });
+
+    it("still blocks email/name even when access is allowed (hard PII)", () => {
+      const r = validateSqlPiiAccessGuard(
+        "SELECT id, email, full_name FROM customers",
+        true
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("hard_pii_blocked");
+      }
+    });
+
+    it("still blocks national identifiers even when access is allowed (hard PII)", () => {
+      const r = validateSqlPiiAccessGuard(
+        "SELECT id, national_id FROM customers",
+        true
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("hard_pii_blocked");
+      }
+    });
+  });
+
+  it("blocks FHIR/LOINC/SNOMED columns as hard-excluded (all standards)", () => {
     const r = validateSqlPiiAccessGuard(
       "SELECT subject_reference, loinc_code, snomed_ct_code FROM observations",
       false
     );
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.reason).toBe("suspected_pii_or_clinical_column");
+      expect(r.reason).toBe("clinical_health_data_blocked");
     }
   });
 
-  it("respects explicitly configured clinical standards", () => {
-    const allowWhenFhirDisabled = validateSqlPiiAccessGuard(
+  it("clinical block ignores a narrowed clinical_standards list", () => {
+    // Even if only hl7v2 is configured, FHIR clinical fields remain hard-excluded.
+    const r = validateSqlPiiAccessGuard(
       "SELECT subject_reference FROM observations",
       false,
       ["hl7v2"]
     );
-    expect(allowWhenFhirDisabled).toEqual({ ok: true });
-
-    const blockWhenFhirEnabled = validateSqlPiiAccessGuard(
-      "SELECT subject_reference FROM observations",
-      false,
-      ["fhir"]
-    );
-    expect(blockWhenFhirEnabled.ok).toBe(false);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toBe("clinical_health_data_blocked");
+    }
   });
 
   it("evaluates each statement in a batch", () => {

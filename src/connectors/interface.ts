@@ -49,6 +49,11 @@ export interface ExecuteOptions {
    * Note: SDK-level readonly enforcement is set via ConnectorConfig.readonly
    */
   readonly?: boolean;
+  /**
+   * Target schema for scoped SQL execution.
+   * When set, the connector pins session search_path to this schema for the query.
+   */
+  targetSchema?: string;
 }
 
 /**

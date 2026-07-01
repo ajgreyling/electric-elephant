@@ -653,7 +653,13 @@ export async function resolveSourceConfigs(): Promise<{
     };
 
     if (args.schema !== undefined && args.schema.trim() !== "") {
-      source.search_path = args.schema.trim();
+      const searchPath = args.schema.trim();
+      if (searchPath.includes(",")) {
+        throw new Error(
+          "Invalid --schema value: only a single schema name is allowed (comma-separated lists are not supported)."
+        );
+      }
+      source.search_path = searchPath;
     }
 
     // Parse DSN to populate connection info fields for API responses

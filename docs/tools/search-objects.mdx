@@ -7,20 +7,22 @@ Search and list database objects (schemas, tables, columns, procedures, function
 ## Parameters
 
 - `object_type` (required): Type of object to search - `"schema"`, `"table"`, `"column"`, `"procedure"`, `"function"`, or `"index"`
+- `schema` (required): Target schema for this search (all results are limited to this schema)
 - `pattern` (optional): Search pattern using SQL LIKE syntax (`%` for wildcard, `_` for single character). Defaults to `"%"` (match all)
-- `schema` (optional): Filter results to a specific schema
-- `table` (optional): Filter by table name (requires `schema`; only valid for `object_type: "column"` or `object_type: "index"`)
+- `table` (optional): Filter by table name (only valid for `object_type: "column"` or `object_type: "index"`)
 - `detail_level` (optional): Level of detail - `"names"` (default), `"summary"`, or `"full"`
 - `limit` (optional): Maximum results to return (default: 100, max: 1000)
+
+**Breaking change:** `schema` is required on every call. Cross-schema discovery is not supported.
 
 ## Input Schema (JSON)
 
 ```json
 {
   "object_type": "schema | table | column | procedure | function | index",
+  "schema": "string (required)",
   "pattern": "string (optional, default: \"%\")",
-  "schema": "string (optional)",
-  "table": "string (optional; requires schema; column/index only)",
+  "table": "string (optional; column/index only)",
   "detail_level": "names | summary | full (optional, default: names)",
   "limit": "integer (optional, default: 100, max: 1000)"
 }

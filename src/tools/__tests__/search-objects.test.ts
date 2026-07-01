@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createSearchDatabaseObjectsToolHandler } from '../search-objects.js';
 import { ConnectorManager } from '../../connectors/manager.js';
+import { getToolRegistry } from '../registry.js';
 import type { Connector, ConnectorType, TableColumn, TableIndex } from '../../connectors/interface.js';
 
 // Mock dependencies
 vi.mock('../../connectors/manager.js');
+vi.mock('../registry.js');
 
 // Mock connector for testing
 const createMockConnector = (id: ConnectorType = 'postgres'): Connector => ({
@@ -33,10 +35,15 @@ const parseToolResponse = (response: any) => {
 describe('search_database_objects tool', () => {
   let mockConnector: Connector;
   const mockGetCurrentConnector = vi.mocked(ConnectorManager.getCurrentConnector);
+  const mockGetToolRegistry = vi.mocked(getToolRegistry);
 
   beforeEach(() => {
     mockConnector = createMockConnector('postgres');
     mockGetCurrentConnector.mockReturnValue(mockConnector);
+    vi.mocked(mockConnector.getSchemas).mockResolvedValue(['public']);
+    mockGetToolRegistry.mockReturnValue({
+      getBuiltinToolConfig: vi.fn().mockReturnValue({}),
+    } as any);
   });
 
   afterEach(() => {
@@ -58,6 +65,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'schema',
           pattern: 'p%',
           detail_level: 'names',
@@ -67,18 +75,16 @@ describe('search_database_objects tool', () => {
 
       const parsed = parseToolResponse(result);
       expect(parsed.success).toBe(true);
-      expect(parsed.data.count).toBe(3);
-      expect(parsed.data.results.map((r: any) => r.name)).toEqual([
-        'public',
-        'private',
-        'production',
-      ]);
+      expect(parsed.data.count).toBe(1);
+      expect(parsed.data.results.map((r: any) => r.name)).toEqual(['public']);
     });
 
     it('should search schemas with _ wildcard', async () => {
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['test']);
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'test',
           object_type: 'schema',
           pattern: 't__t',
           detail_level: 'names',
@@ -94,6 +100,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'schema',
           pattern: '%',
           detail_level: 'names',
@@ -103,8 +110,8 @@ describe('search_database_objects tool', () => {
       );
 
       const parsed = parseToolResponse(result);
-      expect(parsed.data.count).toBe(2);
-      expect(parsed.data.truncated).toBe(true);
+      expect(parsed.data.count).toBe(1);
+      expect(parsed.data.truncated).toBe(false);
     });
 
     it('should return summary with table counts', async () => {
@@ -113,6 +120,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'schema',
           pattern: 'public',
           detail_level: 'summary',
@@ -144,6 +152,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'user%',
           detail_level: 'names',
@@ -171,9 +180,9 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: '%',
-          schema: 'public',
           detail_level: 'names',
         },
         null
@@ -197,6 +206,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'users',
           detail_level: 'summary',
@@ -234,6 +244,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'users',
           detail_level: 'full',
@@ -275,6 +286,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'users',
           detail_level: 'summary',
@@ -298,6 +310,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'users',
           detail_level: 'summary',
@@ -326,6 +339,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'users',
           detail_level: 'full',
@@ -405,6 +419,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'orders',
           detail_level: 'full',
@@ -446,6 +461,67 @@ describe('search_database_objects tool', () => {
         },
       ]);
     });
+
+    it('filters foreign keys that reference another schema', async () => {
+      mockConnector = createMockConnector('postgres');
+      mockGetCurrentConnector.mockReturnValue(mockConnector);
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['public']);
+      vi.mocked(mockConnector.getTables).mockResolvedValue(['orders']);
+
+      const mockColumns: TableColumn[] = [
+        { column_name: 'id', data_type: 'INTEGER', is_nullable: 'NO', column_default: null, description: null },
+      ];
+      vi.mocked(mockConnector.getTableSchema).mockResolvedValue(mockColumns);
+      vi.mocked(mockConnector.getTableIndexes).mockResolvedValue([]);
+      mockConnector.getTableRowCount = vi.fn().mockResolvedValue(1);
+
+      vi.mocked(mockConnector.executeSQL)
+        .mockResolvedValueOnce({ rows: [{ relkind: 'r' }], rowCount: 1 })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              constraint_name: 'orders_other_fkey',
+              source_columns: ['ref_id'],
+              referenced_schema: 'other',
+              referenced_table: 'accounts',
+              referenced_columns: ['id'],
+              update_action: 'a',
+              delete_action: 'a',
+              is_deferrable: false,
+              is_initially_deferred: false,
+            },
+            {
+              constraint_name: 'orders_customer_fkey',
+              source_columns: ['customer_id'],
+              referenced_schema: 'public',
+              referenced_table: 'customers',
+              referenced_columns: ['id'],
+              update_action: 'a',
+              delete_action: 'a',
+              is_deferrable: false,
+              is_initially_deferred: false,
+            },
+          ],
+          rowCount: 2,
+        })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      const handler = createSearchDatabaseObjectsToolHandler();
+      const result = await handler(
+        {
+          schema: 'public',
+          object_type: 'table',
+          pattern: 'orders',
+          detail_level: 'full',
+        },
+        null
+      );
+
+      const parsed = parseToolResponse(result);
+      expect(parsed.data.results[0].foreign_keys).toHaveLength(1);
+      expect(parsed.data.results[0].foreign_keys[0].name).toBe('orders_customer_fkey');
+    });
   });
 
   describe('getTableRowCount dispatch', () => {
@@ -464,6 +540,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'users',
           detail_level: 'summary',
@@ -489,6 +566,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'users',
           detail_level: 'summary',
@@ -511,6 +589,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'table',
           pattern: 'users',
           detail_level: 'summary',
@@ -553,6 +632,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'column',
           pattern: '%id',
           detail_level: 'names',
@@ -579,6 +659,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'column',
           pattern: 'email',
           detail_level: 'summary',
@@ -612,6 +693,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'procedure',
           pattern: 'get%',
           detail_level: 'names',
@@ -641,6 +723,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'procedure',
           pattern: 'get_user',
           detail_level: 'summary',
@@ -671,6 +754,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'function',
           pattern: '%',
           detail_level: 'names',
@@ -701,6 +785,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'function',
           pattern: 'calc_total',
           detail_level: 'summary',
@@ -731,6 +816,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'function',
           pattern: 'calc_total',
           detail_level: 'full',
@@ -754,6 +840,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'function',
           pattern: '%',
           schema: 'public',
@@ -809,6 +896,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'index',
           pattern: '%pkey',
           detail_level: 'names',
@@ -839,6 +927,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'index',
           pattern: '%email%',
           detail_level: 'summary',
@@ -884,7 +973,8 @@ describe('search_database_objects tool', () => {
         const handler = createSearchDatabaseObjectsToolHandler();
         const result = await handler(
           {
-            object_type: 'column',
+            schema: 'public',
+          object_type: 'column',
             pattern: '%',
             schema: 'public',
             table: 'users',
@@ -919,8 +1009,7 @@ describe('search_database_objects tool', () => {
 
         expect(result.isError).toBe(true);
         const parsed = parseToolResponse(result);
-        expect(parsed.code).toBe('SCHEMA_REQUIRED');
-        expect(parsed.error).toContain("'table' parameter requires 'schema'");
+        expect(parsed.code).toBe('SCHEMA_SCOPE_VIOLATION');
       });
 
       it('should work with column pattern when table filter is applied', async () => {
@@ -935,7 +1024,8 @@ describe('search_database_objects tool', () => {
         const handler = createSearchDatabaseObjectsToolHandler();
         const result = await handler(
           {
-            object_type: 'column',
+            schema: 'public',
+          object_type: 'column',
             pattern: '%e%',
             schema: 'public',
             table: 'users',
@@ -989,7 +1079,8 @@ describe('search_database_objects tool', () => {
         const handler = createSearchDatabaseObjectsToolHandler();
         const result = await handler(
           {
-            object_type: 'index',
+            schema: 'public',
+          object_type: 'index',
             pattern: '%',
             schema: 'public',
             table: 'users',
@@ -1015,7 +1106,8 @@ describe('search_database_objects tool', () => {
         const handler = createSearchDatabaseObjectsToolHandler();
         const result = await handler(
           {
-            object_type: 'schema',
+            schema: 'public',
+          object_type: 'schema',
             pattern: '%',
             schema: 'public',
             table: 'users',
@@ -1036,7 +1128,8 @@ describe('search_database_objects tool', () => {
         const handler = createSearchDatabaseObjectsToolHandler();
         const result = await handler(
           {
-            object_type: 'table',
+            schema: 'public',
+          object_type: 'table',
             pattern: '%',
             schema: 'public',
             table: 'users',
@@ -1056,7 +1149,8 @@ describe('search_database_objects tool', () => {
         const handler = createSearchDatabaseObjectsToolHandler();
         const result = await handler(
           {
-            object_type: 'procedure',
+            schema: 'public',
+          object_type: 'procedure',
             pattern: '%',
             schema: 'public',
             table: 'users',
@@ -1079,9 +1173,9 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'nonexistent',
           object_type: 'table',
           pattern: '%',
-          schema: 'nonexistent',
           detail_level: 'names',
         },
         null
@@ -1098,6 +1192,7 @@ describe('search_database_objects tool', () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'public',
           object_type: 'schema',
           pattern: '%',
           detail_level: 'names',
@@ -1113,13 +1208,14 @@ describe('search_database_objects tool', () => {
 
   describe('case insensitivity', () => {
     beforeEach(() => {
-      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['Public', 'Private']);
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['Public']);
     });
 
     it('should perform case-insensitive search', async () => {
       const handler = createSearchDatabaseObjectsToolHandler();
       const result = await handler(
         {
+          schema: 'Public',
           object_type: 'schema',
           pattern: 'public',
           detail_level: 'names',
@@ -1134,20 +1230,12 @@ describe('search_database_objects tool', () => {
 
   describe('special character escaping', () => {
     it('should properly escape regex special characters in patterns', async () => {
-      // Test that patterns containing regex special characters work correctly
-      vi.mocked(mockConnector.getSchemas).mockResolvedValue([
-        'table[1]',
-        'table(prod)',
-        'data.backup',
-        'test+logs',
-        'user*data',
-      ]);
-
       const handler = createSearchDatabaseObjectsToolHandler();
 
-      // Test bracket characters
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['table[1]']);
       const bracketResult = await handler(
         {
+          schema: 'table[1]',
           object_type: 'schema',
           pattern: 'table[1]',
           detail_level: 'names',
@@ -1157,9 +1245,10 @@ describe('search_database_objects tool', () => {
       const bracketParsed = parseToolResponse(bracketResult);
       expect(bracketParsed.data.results.map((r: any) => r.name)).toEqual(['table[1]']);
 
-      // Test parentheses
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['table(prod)']);
       const parenResult = await handler(
         {
+          schema: 'table(prod)',
           object_type: 'schema',
           pattern: 'table(prod)',
           detail_level: 'names',
@@ -1169,9 +1258,10 @@ describe('search_database_objects tool', () => {
       const parenParsed = parseToolResponse(parenResult);
       expect(parenParsed.data.results.map((r: any) => r.name)).toEqual(['table(prod)']);
 
-      // Test dot character
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['data.backup']);
       const dotResult = await handler(
         {
+          schema: 'data.backup',
           object_type: 'schema',
           pattern: 'data.backup',
           detail_level: 'names',
@@ -1181,9 +1271,10 @@ describe('search_database_objects tool', () => {
       const dotParsed = parseToolResponse(dotResult);
       expect(dotParsed.data.results.map((r: any) => r.name)).toEqual(['data.backup']);
 
-      // Test plus character
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['test+logs']);
       const plusResult = await handler(
         {
+          schema: 'test+logs',
           object_type: 'schema',
           pattern: 'test+logs',
           detail_level: 'names',
@@ -1193,9 +1284,10 @@ describe('search_database_objects tool', () => {
       const plusParsed = parseToolResponse(plusResult);
       expect(plusParsed.data.results.map((r: any) => r.name)).toEqual(['test+logs']);
 
-      // Test asterisk character (but not SQL wildcard)
+      vi.mocked(mockConnector.getSchemas).mockResolvedValue(['user*data']);
       const asteriskResult = await handler(
         {
+          schema: 'user*data',
           object_type: 'schema',
           pattern: 'user*data',
           detail_level: 'names',

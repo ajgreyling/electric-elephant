@@ -575,29 +575,30 @@ export class PostgresConnector implements Connector {
 
     const client = await this.pool.connect();
     try {
+      const setLocalSearchPath = options.targetSchema
+        ? `SET LOCAL search_path TO ${quoteIdentifier(options.targetSchema)}`
+        : undefined;
+
       // Check if this is a multi-statement query
       const statements = splitSQLStatements(sql);
 
       if (statements.length === 1) {
-        // Single statement - apply maxRows if applicable
         const processedStatement = SQLRowLimiter.applyMaxRows(statements[0], options.maxRows);
 
-        // Use parameters if provided
-        let result;
-        if (parameters && parameters.length > 0) {
+        if (setLocalSearchPath) {
+          await client.query("BEGIN");
           try {
-            result = await client.query(processedStatement, parameters);
+            await client.query(setLocalSearchPath);
+            const result = await this.runSingleQuery(client, processedStatement, parameters);
+            await client.query("COMMIT");
+            return result;
           } catch (error) {
-            console.error(`[PostgreSQL executeSQL] ERROR: ${(error as Error).message}`);
-            console.error(`[PostgreSQL executeSQL] SQL: ${processedStatement}`);
-            console.error(`[PostgreSQL executeSQL] Parameters: ${JSON.stringify(parameters)}`);
+            await client.query("ROLLBACK");
             throw error;
           }
-        } else {
-          result = await client.query(processedStatement);
         }
-        // Explicitly return rows and rowCount to ensure rowCount is preserved
-        return { rows: result.rows, rowCount: result.rowCount ?? result.rows.length };
+
+        return await this.runSingleQuery(client, processedStatement, parameters);
       } else {
         // Multiple statements - parameters not supported for multi-statement queries
         if (parameters && parameters.length > 0) {
@@ -609,8 +610,12 @@ export class PostgresConnector implements Connector {
         let totalRowCount = 0;
 
         // Execute within a transaction to ensure session consistency
-        await client.query('BEGIN');
+        await client.query("BEGIN");
         try {
+          if (setLocalSearchPath) {
+            await client.query(setLocalSearchPath);
+          }
+
           for (let statement of statements) {
             // Apply maxRows limit to SELECT queries if specified
             const processedStatement = SQLRowLimiter.applyMaxRows(statement, options.maxRows);
@@ -625,9 +630,9 @@ export class PostgresConnector implements Connector {
               totalRowCount += result.rowCount;
             }
           }
-          await client.query('COMMIT');
+          await client.query("COMMIT");
         } catch (error) {
-          await client.query('ROLLBACK');
+          await client.query("ROLLBACK");
           throw error;
         }
 
@@ -636,6 +641,27 @@ export class PostgresConnector implements Connector {
     } finally {
       client.release();
     }
+  }
+
+  private async runSingleQuery(
+    client: pg.PoolClient,
+    processedStatement: string,
+    parameters?: any[]
+  ): Promise<SQLResult> {
+    let result;
+    if (parameters && parameters.length > 0) {
+      try {
+        result = await client.query(processedStatement, parameters);
+      } catch (error) {
+        console.error(`[PostgreSQL executeSQL] ERROR: ${(error as Error).message}`);
+        console.error(`[PostgreSQL executeSQL] SQL: ${processedStatement}`);
+        console.error(`[PostgreSQL executeSQL] Parameters: ${JSON.stringify(parameters)}`);
+        throw error;
+      }
+    } else {
+      result = await client.query(processedStatement);
+    }
+    return { rows: result.rows, rowCount: result.rowCount ?? result.rows.length };
   }
 }
 

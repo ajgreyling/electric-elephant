@@ -429,7 +429,7 @@ function validateSourceConfig(source: SourceConfig, configPath: string): void {
     }
   }
 
-  // Validate search_path (PostgreSQL only)
+  // Validate search_path (PostgreSQL only) — single schema required for scoped isolation
   if (source.search_path !== undefined) {
     if (source.type !== "postgres") {
       throw new Error(
@@ -439,10 +439,15 @@ function validateSourceConfig(source: SourceConfig, configPath: string): void {
     if (typeof source.search_path !== "string" || source.search_path.trim().length === 0) {
       throw new Error(
         `Configuration file ${configPath}: source '${source.id}' has invalid search_path. ` +
-          `Must be a non-empty string of comma-separated schema names (e.g., "myschema,public").`
+          `Must be a non-empty single schema name (e.g., "myschema").`
       );
     }
-
+    if (source.search_path.includes(",")) {
+      throw new Error(
+        `Configuration file ${configPath}: source '${source.id}' has invalid search_path. ` +
+          `Only a single schema is allowed (comma-separated lists are not supported).`
+      );
+    }
   }
 
   // Reject readonly and max_rows at source level (they should be set on tools instead)

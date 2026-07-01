@@ -37,6 +37,7 @@ dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # id = "local_pg_custom_schema"
 # dsn = "postgres://postgres:postgres@localhost:5432/myapp"
 # search_path = "myschema,public"  # Comma-separated list of schemas; first is the default for discovery
+# search_path = "myschema"  # Single target schema (required for scoped isolation)
 
 # Development PostgreSQL (shared dev server)
 # [[sources]]

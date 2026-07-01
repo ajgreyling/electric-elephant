@@ -14,9 +14,13 @@ import {
   DEFAULT_CLINICAL_STANDARDS,
   type ClinicalStandard,
 } from "../utils/pii-heuristics.js";
+import { validateSqlSchemaScope } from "../utils/sql-schema-scope.js";
+import { schemaExists, validateTargetSchemaArg } from "../utils/target-schema.js";
+import type { ExecuteSqlToolConfig } from "../types/config.js";
 
 // Schema for execute_sql tool
 export const executeSqlSchema = {
+  schema: z.string().min(1).describe("Target schema for this query (required)"),
   sql: z.string().describe("SQL to execute (multiple statements separated by ;)"),
 };
 
@@ -38,7 +42,7 @@ function areAllStatementsReadOnly(sql: string): boolean {
  */
 export function createExecuteSqlToolHandler(sourceId?: string) {
   return async (args: any, extra: any) => {
-    const { sql } = args as { sql: string };
+    const { sql, schema } = args as { sql: string; schema: string };
     const startTime = Date.now();
     const effectiveSourceId = getEffectiveSourceId(sourceId);
     let success = true;
@@ -55,7 +59,35 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
 
       // Get tool-specific configuration (tool is already registered, so it's enabled)
       const registry = getToolRegistry();
-      const toolConfig = registry.getBuiltinToolConfig(BUILTIN_TOOL_EXECUTE_SQL, actualSourceId);
+      const toolConfig = registry.getBuiltinToolConfig(
+        BUILTIN_TOOL_EXECUTE_SQL,
+        actualSourceId
+      ) as ExecuteSqlToolConfig | undefined;
+
+      const allowlistResult = validateTargetSchemaArg(schema, toolConfig?.allowed_schemas);
+      if (!allowlistResult.ok) {
+        errorMessage = allowlistResult.message;
+        success = false;
+        return createToolErrorResponse(errorMessage, "SCHEMA_SCOPE_VIOLATION", {
+          reason: allowlistResult.reason,
+        });
+      }
+
+      if (!(await schemaExists(connector, schema))) {
+        errorMessage = `Schema '${schema}' does not exist`;
+        success = false;
+        return createToolErrorResponse(errorMessage, "SCHEMA_NOT_FOUND");
+      }
+
+      const scopeResult = validateSqlSchemaScope(sql, schema);
+      if (!scopeResult.ok) {
+        errorMessage = scopeResult.message;
+        success = false;
+        return createToolErrorResponse(errorMessage, "SCHEMA_SCOPE_VIOLATION", {
+          reason: scopeResult.reason,
+          reference: scopeResult.reference,
+        });
+      }
 
       // Check if SQL is allowed based on readonly mode (per-tool)
       const isReadonly = toolConfig?.readonly === true;
@@ -67,7 +99,7 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
 
       const allowPiiAccess = toolConfig?.allow_access_to_pii_data === true;
       const configuredStandards =
-        (toolConfig as { clinical_standards?: ClinicalStandard[] } | undefined)?.clinical_standards;
+        toolConfig?.clinical_standards;
       const enabledStandards =
         configuredStandards && configuredStandards.length > 0
           ? configuredStandards
@@ -84,10 +116,10 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
       }
 
       // Execute the SQL (single or multiple statements) if validation passed
-      // Pass readonly and maxRows from tool config (if set)
       const executeOptions = {
         readonly: toolConfig?.readonly,
         maxRows: toolConfig?.max_rows,
+        targetSchema: schema,
       };
       result = await connector.executeSQL(sql, executeOptions);
 
@@ -96,6 +128,7 @@ export function createExecuteSqlToolHandler(sourceId?: string) {
         rows: result.rows,
         count: result.rowCount,
         source_id: effectiveSourceId,
+        schema,
       };
 
       return createToolSuccessResponse(responseData);

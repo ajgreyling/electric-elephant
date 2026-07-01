@@ -20,6 +20,9 @@ import type {
 import { BUILTIN_TOOLS } from "./builtin-tools.js";
 import { ConnectorManager } from "../connectors/manager.js";
 import { validateParameters } from "../utils/parameter-mapper.js";
+import { validateSqlSchemaScope, validateStaticSqlPolicy } from "../utils/sql-schema-scope.js";
+import { validateSqlPiiAccessGuard } from "../utils/pii-sql-guard.js";
+import { defaultSchemaFromSearchPath } from "../utils/target-schema.js";
 
 /**
  * Registry for managing tools across multiple database sources
@@ -161,7 +164,40 @@ export class ToolRegistry {
     if (toolConfig.parameters) {
       for (const param of toolConfig.parameters) {
         this.validateParameter(toolConfig.name, param);
+        if (param.name === "schema") {
+          throw new Error(
+            `Tool '${toolConfig.name}' parameter name 'schema' is reserved for the mandatory target schema argument`
+          );
+        }
       }
+    }
+
+    // 6. Validate static SQL against default schema when configured
+    const defaultSchema = defaultSchemaFromSearchPath(sourceConfig.search_path);
+    if (defaultSchema) {
+      const scopeResult = validateSqlSchemaScope(toolConfig.statement, defaultSchema);
+      if (!scopeResult.ok) {
+        throw new Error(
+          `Tool '${toolConfig.name}' SQL violates schema scope for default schema '${defaultSchema}': ${scopeResult.message}`
+        );
+      }
+    } else {
+      const policyResult = validateStaticSqlPolicy(toolConfig.statement);
+      if (!policyResult.ok) {
+        throw new Error(
+          `Tool '${toolConfig.name}' SQL violates schema scope: ${policyResult.message}`
+        );
+      }
+    }
+
+    // 7. Hard exclusion: custom tools must never project clinical/health data
+    // (HL7v2, FHIR, LOINC, SNOMED, medical fields) or use wildcard projections
+    // that could expose them. This cannot be overridden by any configuration.
+    const clinicalGuard = validateSqlPiiAccessGuard(toolConfig.statement, true);
+    if (!clinicalGuard.ok) {
+      throw new Error(
+        `Tool '${toolConfig.name}' SQL is blocked: ${clinicalGuard.message}`
+      );
     }
   }
 

@@ -241,7 +241,7 @@ describe("Custom Tool Handler", () => {
         type: "string",
         description: "User email",
       });
-      expect(schema.required).toEqual(["email"]);
+      expect(schema.required).toEqual(["schema", "email"]);
     });
 
     it("should build JSON Schema for integer parameter", () => {
@@ -332,7 +332,7 @@ describe("Custom Tool Handler", () => {
       ];
       const schema = buildInputSchema(params);
 
-      expect(schema.required).toEqual(["id"]);
+      expect(schema.required).toEqual(["schema", "id"]);
     });
 
     it("should omit required field when all params are optional", () => {
@@ -346,15 +346,20 @@ describe("Custom Tool Handler", () => {
       ];
       const schema = buildInputSchema(params);
 
-      expect(schema.required).toBeUndefined();
+      expect(schema.required).toEqual(["schema"]);
     });
 
     it("should build empty schema for undefined parameters", () => {
       const schema = buildInputSchema(undefined);
 
       expect(schema.type).toBe("object");
-      expect(schema.properties).toEqual({});
-      expect(schema.required).toBeUndefined();
+      expect(schema.properties).toEqual({
+        schema: {
+          type: "string",
+          description: "Target schema for this query (required)",
+        },
+      });
+      expect(schema.required).toEqual(["schema"]);
     });
   });
 });

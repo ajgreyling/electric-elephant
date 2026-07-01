@@ -7,6 +7,10 @@ import {
   getEffectiveSourceId,
   trackToolRequest,
 } from "../utils/tool-handler-helpers.js";
+import { schemaExists, validateTargetSchemaArg } from "../utils/target-schema.js";
+import { getToolRegistry } from "./registry.js";
+import { BUILTIN_TOOL_SEARCH_OBJECTS } from "./builtin-tools.js";
+import type { SearchObjectsToolConfig } from "../types/config.js";
 
 /**
  * Object types that can be searched
@@ -59,8 +63,8 @@ export const searchDatabaseObjectsSchema = {
     .describe("LIKE pattern (% = any chars, _ = one char). Default: %"),
   schema: z
     .string()
-    .optional()
-    .describe("Filter to schema"),
+    .min(1)
+    .describe("Target schema (required)"),
   table: z
     .string()
     .optional()
@@ -244,17 +248,19 @@ async function getPostgresForeignKeys(
       d: "set_default",
     };
 
-    return result.rows.map((row: any) => ({
-      name: row.constraint_name,
-      columns: row.source_columns || [],
-      referenced_schema: row.referenced_schema,
-      referenced_table: row.referenced_table,
-      referenced_columns: row.referenced_columns || [],
-      on_update: actionMap[row.update_action] ?? row.update_action,
-      on_delete: actionMap[row.delete_action] ?? row.delete_action,
-      deferrable: Boolean(row.is_deferrable),
-      initially_deferred: Boolean(row.is_initially_deferred),
-    }));
+    return result.rows
+      .map((row: any) => ({
+        name: row.constraint_name,
+        columns: row.source_columns || [],
+        referenced_schema: row.referenced_schema,
+        referenced_table: row.referenced_table,
+        referenced_columns: row.referenced_columns || [],
+        on_update: actionMap[row.update_action] ?? row.update_action,
+        on_delete: actionMap[row.delete_action] ?? row.delete_action,
+        deferrable: Boolean(row.is_deferrable),
+        initially_deferred: Boolean(row.is_initially_deferred),
+      }))
+      .filter((fk) => fk.referenced_schema.toLowerCase() === schemaName.toLowerCase());
   } catch {
     return [];
   }
@@ -360,41 +366,39 @@ async function getPostgresOwnedSequences(
 }
 
 /**
- * Search for schemas
+ * Return metadata for the requested target schema only.
  */
-async function searchSchemas(
+async function getTargetSchemaInfo(
   connector: Connector,
+  schemaName: string,
   pattern: string,
-  detailLevel: DetailLevel,
-  limit: number
+  detailLevel: DetailLevel
 ): Promise<any[]> {
-  const schemas = await connector.getSchemas();
   const regex = likePatternToRegex(pattern);
-  const matched = schemas.filter((schema: string) => regex.test(schema)).slice(0, limit);
-
-  if (detailLevel === "names") {
-    return matched.map((name: string) => ({ name }));
+  if (!regex.test(schemaName)) {
+    return [];
   }
 
-  // For summary and full, add table count
-  const results = await Promise.all(
-    matched.map(async (schemaName: string) => {
-      try {
-        const tables = await connector.getTables(schemaName);
-        return {
-          name: schemaName,
-          table_count: tables.length,
-        };
-      } catch (error) {
-        return {
-          name: schemaName,
-          table_count: 0,
-        };
-      }
-    })
-  );
+  if (detailLevel === "names") {
+    return [{ name: schemaName }];
+  }
 
-  return results;
+  try {
+    const tables = await connector.getTables(schemaName);
+    return [
+      {
+        name: schemaName,
+        table_count: tables.length,
+      },
+    ];
+  } catch {
+    return [
+      {
+        name: schemaName,
+        table_count: 0,
+      },
+    ];
+  }
 }
 
 /**
@@ -403,112 +407,96 @@ async function searchSchemas(
 async function searchTables(
   connector: Connector,
   pattern: string,
-  schemaFilter: string | undefined,
+  schemaName: string,
   detailLevel: DetailLevel,
   limit: number
 ): Promise<any[]> {
   const regex = likePatternToRegex(pattern);
   const results: any[] = [];
 
-  // Get schemas to search
-  let schemasToSearch: string[];
-  if (schemaFilter) {
-    schemasToSearch = [schemaFilter];
-  } else {
-    schemasToSearch = await connector.getSchemas();
-  }
+  try {
+    const tables = await connector.getTables(schemaName);
+    const matched = tables.filter((table: string) => regex.test(table));
 
-  // Search tables in each schema
-  for (const schemaName of schemasToSearch) {
-    if (results.length >= limit) break;
+    for (const tableName of matched) {
+      if (results.length >= limit) break;
 
-    try {
-      const tables = await connector.getTables(schemaName);
-      const matched = tables.filter((table: string) => regex.test(table));
+      if (detailLevel === "names") {
+        results.push({
+          name: tableName,
+          schema: schemaName,
+        });
+      } else if (detailLevel === "summary") {
+        try {
+          const columns = await connector.getTableSchema(tableName, schemaName);
+          const rowCount = await getTableRowCount(connector, tableName, schemaName);
+          const comment = await getTableComment(connector, tableName, schemaName);
 
-      for (const tableName of matched) {
-        if (results.length >= limit) break;
-
-        if (detailLevel === "names") {
           results.push({
             name: tableName,
             schema: schemaName,
+            column_count: columns.length,
+            row_count: rowCount,
+            ...(comment ? { comment } : {}),
           });
-        } else if (detailLevel === "summary") {
-          // Get column count and table comment for summary
-          try {
-            const columns = await connector.getTableSchema(tableName, schemaName);
-            const rowCount = await getTableRowCount(connector, tableName, schemaName);
-            const comment = await getTableComment(connector, tableName, schemaName);
+        } catch {
+          results.push({
+            name: tableName,
+            schema: schemaName,
+            column_count: null,
+            row_count: null,
+          });
+        }
+      } else {
+        try {
+          const columns = await connector.getTableSchema(tableName, schemaName);
+          const indexes = await connector.getTableIndexes(tableName, schemaName);
+          const rowCount = await getTableRowCount(connector, tableName, schemaName);
+          const comment = await getTableComment(connector, tableName, schemaName);
+          const relationKind = await getPostgresRelationKind(connector, tableName, schemaName);
+          const foreignKeys = await getPostgresForeignKeys(connector, tableName, schemaName);
+          const triggers = await getPostgresTriggers(connector, tableName, schemaName);
+          const sequences = await getPostgresOwnedSequences(connector, tableName, schemaName);
 
-            results.push({
-              name: tableName,
-              schema: schemaName,
-              column_count: columns.length,
-              row_count: rowCount,
-              ...(comment ? { comment } : {}),
-            });
-          } catch (error) {
-            results.push({
-              name: tableName,
-              schema: schemaName,
-              column_count: null,
-              row_count: null,
-            });
-          }
-        } else {
-          // full detail
-          try {
-            const columns = await connector.getTableSchema(tableName, schemaName);
-            const indexes = await connector.getTableIndexes(tableName, schemaName);
-            const rowCount = await getTableRowCount(connector, tableName, schemaName);
-            const comment = await getTableComment(connector, tableName, schemaName);
-            const relationKind = await getPostgresRelationKind(connector, tableName, schemaName);
-            const foreignKeys = await getPostgresForeignKeys(connector, tableName, schemaName);
-            const triggers = await getPostgresTriggers(connector, tableName, schemaName);
-            const sequences = await getPostgresOwnedSequences(connector, tableName, schemaName);
-
-            results.push({
-              name: tableName,
-              schema: schemaName,
-              column_count: columns.length,
-              row_count: rowCount,
-              ...(comment ? { comment } : {}),
-              ...(relationKind ? { relation_kind: relationKind } : {}),
-              columns: columns.map((col: any) => ({
-                name: col.column_name,
-                type: col.data_type,
-                nullable: col.is_nullable === "YES",
-                default: col.column_default,
-                ...(col.description ? { description: col.description } : {}),
-              })),
-              indexes: indexes.map((idx: any) => ({
-                name: idx.index_name,
-                columns: idx.column_names,
-                unique: idx.is_unique,
-                primary: idx.is_primary,
-              })),
-              ...(connector.id === "postgres"
-                ? {
-                    foreign_keys: foreignKeys,
-                    triggers,
-                    sequences,
-                  }
-                : {}),
-            });
-          } catch (error) {
-            results.push({
-              name: tableName,
-              schema: schemaName,
-              error: `Unable to fetch full details: ${(error as Error).message}`,
-            });
-          }
+          results.push({
+            name: tableName,
+            schema: schemaName,
+            column_count: columns.length,
+            row_count: rowCount,
+            ...(comment ? { comment } : {}),
+            ...(relationKind ? { relation_kind: relationKind } : {}),
+            columns: columns.map((col: any) => ({
+              name: col.column_name,
+              type: col.data_type,
+              nullable: col.is_nullable === "YES",
+              default: col.column_default,
+              ...(col.description ? { description: col.description } : {}),
+            })),
+            indexes: indexes.map((idx: any) => ({
+              name: idx.index_name,
+              columns: idx.column_names,
+              unique: idx.is_unique,
+              primary: idx.is_primary,
+            })),
+            ...(connector.id === "postgres"
+              ? {
+                  foreign_keys: foreignKeys,
+                  triggers,
+                  sequences,
+                }
+              : {}),
+          });
+        } catch (error) {
+          results.push({
+            name: tableName,
+            schema: schemaName,
+            error: `Unable to fetch full details: ${(error as Error).message}`,
+          });
         }
       }
-    } catch (error) {
-      // Skip schemas we can't access
-      continue;
     }
+  } catch {
+    // Schema inaccessible
   }
 
   return results;
@@ -520,7 +508,7 @@ async function searchTables(
 async function searchColumns(
   connector: Connector,
   pattern: string,
-  schemaFilter: string | undefined,
+  schemaName: string,
   tableFilter: string | undefined,
   detailLevel: DetailLevel,
   limit: number
@@ -528,67 +516,48 @@ async function searchColumns(
   const regex = likePatternToRegex(pattern);
   const results: any[] = [];
 
-  // Get schemas to search
-  let schemasToSearch: string[];
-  if (schemaFilter) {
-    schemasToSearch = [schemaFilter];
-  } else {
-    schemasToSearch = await connector.getSchemas();
-  }
-
-  // Search columns in tables across schemas
-  for (const schemaName of schemasToSearch) {
-    if (results.length >= limit) break;
-
-    try {
-      // Get tables to search
-      let tablesToSearch: string[];
-      if (tableFilter) {
-        // If table filter is specified, only search that table
-        tablesToSearch = [tableFilter];
-      } else {
-        // Otherwise search all tables in the schema
-        tablesToSearch = await connector.getTables(schemaName);
-      }
-
-      for (const tableName of tablesToSearch) {
-        if (results.length >= limit) break;
-
-        try {
-          const columns = await connector.getTableSchema(tableName, schemaName);
-          const matchedColumns = columns.filter((col: any) => regex.test(col.column_name));
-
-          for (const column of matchedColumns) {
-            if (results.length >= limit) break;
-
-            if (detailLevel === "names") {
-              results.push({
-                name: column.column_name,
-                table: tableName,
-                schema: schemaName,
-              });
-            } else {
-              // summary and full are the same for columns
-              results.push({
-                name: column.column_name,
-                table: tableName,
-                schema: schemaName,
-                type: column.data_type,
-                nullable: column.is_nullable === "YES",
-                default: column.column_default,
-                ...(column.description ? { description: column.description } : {}),
-              });
-            }
-          }
-        } catch (error) {
-          // Skip tables we can't access
-          continue;
-        }
-      }
-    } catch (error) {
-      // Skip schemas we can't access
-      continue;
+  try {
+    let tablesToSearch: string[];
+    if (tableFilter) {
+      tablesToSearch = [tableFilter];
+    } else {
+      tablesToSearch = await connector.getTables(schemaName);
     }
+
+    for (const tableName of tablesToSearch) {
+      if (results.length >= limit) break;
+
+      try {
+        const columns = await connector.getTableSchema(tableName, schemaName);
+        const matchedColumns = columns.filter((col: any) => regex.test(col.column_name));
+
+        for (const column of matchedColumns) {
+          if (results.length >= limit) break;
+
+          if (detailLevel === "names") {
+            results.push({
+              name: column.column_name,
+              table: tableName,
+              schema: schemaName,
+            });
+          } else {
+            results.push({
+              name: column.column_name,
+              table: tableName,
+              schema: schemaName,
+              type: column.data_type,
+              nullable: column.is_nullable === "YES",
+              default: column.column_default,
+              ...(column.description ? { description: column.description } : {}),
+            });
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // Schema inaccessible
   }
 
   return results;
@@ -602,7 +571,7 @@ async function searchColumns(
 async function searchProcedures(
   connector: Connector,
   pattern: string,
-  schemaFilter: string | undefined,
+  schemaName: string,
   detailLevel: DetailLevel,
   limit: number,
   routineType?: "procedure" | "function"
@@ -610,56 +579,41 @@ async function searchProcedures(
   const regex = likePatternToRegex(pattern);
   const results: any[] = [];
 
-  // Get schemas to search
-  let schemasToSearch: string[];
-  if (schemaFilter) {
-    schemasToSearch = [schemaFilter];
-  } else {
-    schemasToSearch = await connector.getSchemas();
-  }
+  try {
+    const procedures = await connector.getStoredProcedures(schemaName, routineType);
+    const matched = procedures.filter((proc: string) => regex.test(proc));
 
-  // Search procedures/functions in each schema
-  for (const schemaName of schemasToSearch) {
-    if (results.length >= limit) break;
+    for (const procName of matched) {
+      if (results.length >= limit) break;
 
-    try {
-      const procedures = await connector.getStoredProcedures(schemaName, routineType);
-      const matched = procedures.filter((proc: string) => regex.test(proc));
-
-      for (const procName of matched) {
-        if (results.length >= limit) break;
-
-        if (detailLevel === "names") {
+      if (detailLevel === "names") {
+        results.push({
+          name: procName,
+          schema: schemaName,
+        });
+      } else {
+        try {
+          const details = await connector.getStoredProcedureDetail(procName, schemaName);
           results.push({
             name: procName,
             schema: schemaName,
+            type: details.procedure_type,
+            language: details.language,
+            parameters: detailLevel === "full" ? details.parameter_list : undefined,
+            return_type: details.return_type,
+            definition: detailLevel === "full" ? details.definition : undefined,
           });
-        } else {
-          // summary and full - get procedure details
-          try {
-            const details = await connector.getStoredProcedureDetail(procName, schemaName);
-            results.push({
-              name: procName,
-              schema: schemaName,
-              type: details.procedure_type,
-              language: details.language,
-              parameters: detailLevel === "full" ? details.parameter_list : undefined,
-              return_type: details.return_type,
-              definition: detailLevel === "full" ? details.definition : undefined,
-            });
-          } catch (error) {
-            results.push({
-              name: procName,
-              schema: schemaName,
-              error: `Unable to fetch details: ${(error as Error).message}`,
-            });
-          }
+        } catch (error) {
+          results.push({
+            name: procName,
+            schema: schemaName,
+            error: `Unable to fetch details: ${(error as Error).message}`,
+          });
         }
       }
-    } catch (error) {
-      // Skip schemas we can't access or databases that don't support procedures
-      continue;
     }
+  } catch {
+    // Schema inaccessible or routines unsupported
   }
 
   return results;
@@ -671,7 +625,7 @@ async function searchProcedures(
 async function searchIndexes(
   connector: Connector,
   pattern: string,
-  schemaFilter: string | undefined,
+  schemaName: string,
   tableFilter: string | undefined,
   detailLevel: DetailLevel,
   limit: number
@@ -679,66 +633,47 @@ async function searchIndexes(
   const regex = likePatternToRegex(pattern);
   const results: any[] = [];
 
-  // Get schemas to search
-  let schemasToSearch: string[];
-  if (schemaFilter) {
-    schemasToSearch = [schemaFilter];
-  } else {
-    schemasToSearch = await connector.getSchemas();
-  }
-
-  // Search indexes in tables across schemas
-  for (const schemaName of schemasToSearch) {
-    if (results.length >= limit) break;
-
-    try {
-      // Get tables to search
-      let tablesToSearch: string[];
-      if (tableFilter) {
-        // If table filter is specified, only search that table
-        tablesToSearch = [tableFilter];
-      } else {
-        // Otherwise search all tables in the schema
-        tablesToSearch = await connector.getTables(schemaName);
-      }
-
-      for (const tableName of tablesToSearch) {
-        if (results.length >= limit) break;
-
-        try {
-          const indexes = await connector.getTableIndexes(tableName, schemaName);
-          const matchedIndexes = indexes.filter((idx: any) => regex.test(idx.index_name));
-
-          for (const index of matchedIndexes) {
-            if (results.length >= limit) break;
-
-            if (detailLevel === "names") {
-              results.push({
-                name: index.index_name,
-                table: tableName,
-                schema: schemaName,
-              });
-            } else {
-              // summary and full are the same for indexes
-              results.push({
-                name: index.index_name,
-                table: tableName,
-                schema: schemaName,
-                columns: index.column_names,
-                unique: index.is_unique,
-                primary: index.is_primary,
-              });
-            }
-          }
-        } catch (error) {
-          // Skip tables we can't access
-          continue;
-        }
-      }
-    } catch (error) {
-      // Skip schemas we can't access
-      continue;
+  try {
+    let tablesToSearch: string[];
+    if (tableFilter) {
+      tablesToSearch = [tableFilter];
+    } else {
+      tablesToSearch = await connector.getTables(schemaName);
     }
+
+    for (const tableName of tablesToSearch) {
+      if (results.length >= limit) break;
+
+      try {
+        const indexes = await connector.getTableIndexes(tableName, schemaName);
+        const matchedIndexes = indexes.filter((idx: any) => regex.test(idx.index_name));
+
+        for (const index of matchedIndexes) {
+          if (results.length >= limit) break;
+
+          if (detailLevel === "names") {
+            results.push({
+              name: index.index_name,
+              table: tableName,
+              schema: schemaName,
+            });
+          } else {
+            results.push({
+              name: index.index_name,
+              table: tableName,
+              schema: schemaName,
+              columns: index.column_names,
+              unique: index.is_unique,
+              primary: index.is_primary,
+            });
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // Schema inaccessible
   }
 
   return results;
@@ -759,7 +694,7 @@ export function createSearchDatabaseObjectsToolHandler(sourceId?: string) {
     } = args as {
       object_type: DatabaseObjectType;
       pattern?: string;
-      schema?: string;
+      schema: string;
       table?: string;
       detail_level: DetailLevel;
       limit: number;
@@ -771,20 +706,26 @@ export function createSearchDatabaseObjectsToolHandler(sourceId?: string) {
     let errorMessage: string | undefined;
 
     try {
-      // Ensure source is connected (handles lazy connections)
       await ConnectorManager.ensureConnected(sourceId);
 
       const connector = ConnectorManager.getCurrentConnector(sourceId);
+      const actualSourceId = connector.getId();
+      const registry = getToolRegistry();
+      const toolConfig = registry.getBuiltinToolConfig(
+        BUILTIN_TOOL_SEARCH_OBJECTS,
+        actualSourceId
+      ) as SearchObjectsToolConfig | undefined;
 
-      // Tool is already registered, so it's enabled (no need to check)
+      const allowlistResult = validateTargetSchemaArg(schema, toolConfig?.allowed_schemas);
+      if (!allowlistResult.ok) {
+        success = false;
+        errorMessage = allowlistResult.message;
+        return createToolErrorResponse(errorMessage, "SCHEMA_SCOPE_VIOLATION", {
+          reason: allowlistResult.reason,
+        });
+      }
 
-      // Validate table parameter
       if (table) {
-        if (!schema) {
-          success = false;
-          errorMessage = "The 'table' parameter requires 'schema' to be specified";
-          return createToolErrorResponse(errorMessage, "SCHEMA_REQUIRED");
-        }
         if (!["column", "index"].includes(object_type)) {
           success = false;
           errorMessage = `The 'table' parameter only applies to object_type 'column' or 'index', not '${object_type}'`;
@@ -792,22 +733,17 @@ export function createSearchDatabaseObjectsToolHandler(sourceId?: string) {
         }
       }
 
-      // Validate schema if provided
-      if (schema) {
-        const schemas = await connector.getSchemas();
-        if (!schemas.includes(schema)) {
-          success = false;
-          errorMessage = `Schema '${schema}' does not exist. Available schemas: ${schemas.join(", ")}`;
-          return createToolErrorResponse(errorMessage, "SCHEMA_NOT_FOUND");
-        }
+      if (!(await schemaExists(connector, schema))) {
+        success = false;
+        errorMessage = `Schema '${schema}' does not exist`;
+        return createToolErrorResponse(errorMessage, "SCHEMA_NOT_FOUND");
       }
 
       let results: any[] = [];
 
-      // Route to appropriate search function
       switch (object_type) {
         case "schema":
-          results = await searchSchemas(connector, pattern, detail_level, limit);
+          results = await getTargetSchemaInfo(connector, schema, pattern, detail_level);
           break;
         case "table":
           results = await searchTables(connector, pattern, schema, detail_level, limit);
@@ -853,7 +789,7 @@ export function createSearchDatabaseObjectsToolHandler(sourceId?: string) {
         {
           sourceId: effectiveSourceId,
           toolName: effectiveSourceId === "default" ? "search_objects" : `search_objects_${effectiveSourceId}`,
-          sql: `search_objects(object_type=${object_type}, pattern=${pattern}, schema=${schema || "all"}, table=${table || "all"}, detail_level=${detail_level})`,
+          sql: `search_objects(object_type=${object_type}, pattern=${pattern}, schema=${schema}, table=${table || "all"}, detail_level=${detail_level})`,
         },
         startTime,
         extra,

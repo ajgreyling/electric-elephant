@@ -120,11 +120,22 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
       "node",
       "script.js",
       "--dsn=postgres://u:p@localhost:5432/db",
-      "--schema=my_schema,public",
+      "--schema=my_schema",
     ];
 
     const result = await resolveSourceConfigs();
-    expect(result?.sources[0]?.search_path).toBe("my_schema,public");
+    expect(result?.sources[0]?.search_path).toBe("my_schema");
+  });
+
+  it("rejects comma-separated --schema values in single-DSN mode", async () => {
+    process.argv = [
+      "node",
+      "script.js",
+      "--dsn=postgres://u:p@localhost:5432/db",
+      "--schema=my_schema,public",
+    ];
+
+    await expect(resolveSourceConfigs()).rejects.toThrow(/single schema name is allowed/);
   });
 
   it("sets execute_sql readonly=false with bare --allow-destructive-sql in single-DSN mode", async () => {
