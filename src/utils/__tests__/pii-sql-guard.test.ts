@@ -47,6 +47,21 @@ describe("pii-sql-guard", () => {
       });
     }
 
+    it("blocks whole-table dump statements (COPY <table> TO, TABLE <name>)", () => {
+      for (const sql of ["COPY users TO STDOUT", "COPY public.users TO STDOUT", "TABLE users"]) {
+        const r = validateSqlPiiAccessGuard(sql, true);
+        expect(r.ok, `${sql} should be blocked`).toBe(false);
+        if (!r.ok) { expect(r.reason).toBe("wildcard_clinical_risk"); }
+      }
+    });
+
+    it("does not over-block COPY of an explicit projection or 'copy'/'table' in a string", () => {
+      expect(validateSqlPiiAccessGuard("COPY (SELECT id, status FROM users) TO STDOUT", true)).toEqual({ ok: true });
+      expect(
+        validateSqlPiiAccessGuard("SELECT id FROM mytable WHERE label = 'copy to me'", true)
+      ).toEqual({ ok: true });
+    });
+
     it("blocks a double-quoted PII identifier (quotes must not hide the name)", () => {
       const r = validateSqlPiiAccessGuard('SELECT "email" FROM users', true);
       expect(r.ok).toBe(false);

@@ -308,6 +308,24 @@ function analyzeProjectionListString(
   return { wildcards, pii, clinical, hardPii };
 }
 
+/**
+ * Whole-table statement forms that emit every column of a table without a
+ * projection the column-name guard could inspect:
+ *   - `COPY <table> TO ...`   (bare-table COPY dumps the whole table; the
+ *     `COPY (SELECT ...)` form is covered by normal projection scanning)
+ *   - `TABLE <name>`          (PostgreSQL shorthand for `SELECT * FROM <name>`)
+ */
+function wholeTableStatementRisk(strippedStmt: string): string | null {
+  const t = strippedStmt.trim();
+  // COPY <table> TO ... — but NOT `COPY ( SELECT ... ) TO ...`.
+  const copy = /^copy\s+(?!\s*\()([a-zA-Z_][\w.$"]*)\s+to\b/i.exec(t);
+  if (copy) { return `COPY ${copy[1]} TO`; }
+  // TABLE <name> [;]
+  const table = /^table\s+([a-zA-Z_][\w.$"]*)\s*;?\s*$/i.exec(t);
+  if (table) { return `TABLE ${table[1]}`; }
+  return null;
+}
+
 function scanStatementInternal(
   strippedStmt: string,
   nest: number,
@@ -317,6 +335,11 @@ function scanStatementInternal(
   const allPii: string[] = [];
   const allClinical: string[] = [];
   const allHardPii: string[] = [];
+
+  const wholeTable = wholeTableStatementRisk(strippedStmt);
+  if (wholeTable) {
+    allWild.push(wholeTable);
+  }
 
   const recordNames = collectRecordNames(strippedStmt);
   const lists = [
