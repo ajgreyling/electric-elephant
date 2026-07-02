@@ -81,6 +81,8 @@ describe("JSON RPC Integration Tests", () => {
           name VARCHAR(100) NOT NULL,
           email VARCHAR(100) UNIQUE NOT NULL,
           mobile_number VARCHAR(20),
+          status VARCHAR(20) DEFAULT 'active',
+          tier INTEGER,
           age INTEGER
         );
 
@@ -91,10 +93,10 @@ describe("JSON RPC Integration Tests", () => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        INSERT INTO users (name, email, mobile_number, age) VALUES
-        ('John Doe', 'john@example.com', '+27820000001', 30),
-        ('Jane Smith', 'jane@example.com', '+27820000002', 25),
-        ('Bob Johnson', 'bob@example.com', '+27820000003', 35);
+        INSERT INTO users (name, email, mobile_number, status, tier, age) VALUES
+        ('John Doe', 'john@example.com', '+27820000001', 'active', 30, 30),
+        ('Jane Smith', 'jane@example.com', '+27820000002', 'active', 25, 25),
+        ('Bob Johnson', 'bob@example.com', '+27820000003', 'active', 35, 35);
 
         INSERT INTO orders (user_id, total) VALUES
         (1, 99.99),
@@ -153,15 +155,15 @@ describe("JSON RPC Integration Tests", () => {
     it("should execute a simple SELECT query successfully", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
         schema: "public",
-        sql: "SELECT id, age FROM users WHERE age > 25 ORDER BY age",
+        sql: "SELECT id, tier FROM users WHERE tier > 25 ORDER BY tier",
       })) as { result: { content: { text: string }[] } };
 
       expect(response).toHaveProperty("result");
       const content = JSON.parse(response.result.content[0].text);
       expect(content.success).toBe(true);
       expect(content.data.rows).toHaveLength(2);
-      expect(content.data.rows[0].age).toBe(30);
-      expect(content.data.rows[1].age).toBe(35);
+      expect(content.data.rows[0].tier).toBe(30);
+      expect(content.data.rows[1].tier).toBe(35);
     });
 
     it("should execute a JOIN query successfully", async () => {
@@ -189,9 +191,9 @@ describe("JSON RPC Integration Tests", () => {
         sql: `
           SELECT
             COUNT(*)::int as user_count,
-            AVG(age)::numeric(10,2) as avg_age,
-            MIN(age) as min_age,
-            MAX(age) as max_age
+            AVG(tier)::numeric(10,2) as avg_tier,
+            MIN(tier) as min_tier,
+            MAX(tier) as max_tier
           FROM users
         `,
       })) as { result: { content: { text: string }[] } };
@@ -200,9 +202,9 @@ describe("JSON RPC Integration Tests", () => {
       expect(content.success).toBe(true);
       expect(content.data.rows).toHaveLength(1);
       expect(content.data.rows[0].user_count).toBe(3);
-      expect(Number(content.data.rows[0].avg_age)).toBe(30);
-      expect(content.data.rows[0].min_age).toBe(25);
-      expect(content.data.rows[0].max_age).toBe(35);
+      expect(Number(content.data.rows[0].avg_tier)).toBe(30);
+      expect(content.data.rows[0].min_tier).toBe(25);
+      expect(content.data.rows[0].max_tier).toBe(35);
     });
 
     it("should handle multiple statements in a single call", async () => {
@@ -254,7 +256,7 @@ describe("JSON RPC Integration Tests", () => {
     it("should handle empty result sets", async () => {
       const response = (await makeJsonRpcCall("execute_sql", {
         schema: "public",
-        sql: "SELECT id, age FROM users WHERE age > 100",
+        sql: "SELECT id, tier FROM users WHERE tier > 100",
       })) as { result: { content: { text: string }[] } };
 
       const content = JSON.parse(response.result.content[0].text);
@@ -267,15 +269,15 @@ describe("JSON RPC Integration Tests", () => {
       const response = (await makeJsonRpcCall("execute_sql", {
         schema: "public",
         sql: `
-          INSERT INTO users (name, email, age) VALUES ('Transaction User', 'transaction@example.com', 40);
-          SELECT id, age FROM users WHERE email = 'transaction@example.com';
+          INSERT INTO users (name, email, tier, age) VALUES ('Transaction User', 'transaction@example.com', 40, 40);
+          SELECT id, tier FROM users WHERE email = 'transaction@example.com';
         `,
       })) as { result: { content: { text: string }[] } };
 
       const content = JSON.parse(response.result.content[0].text);
       expect(content.success).toBe(true);
       expect(content.data.rows).toHaveLength(1);
-      expect(content.data.rows[0].age).toBe(40);
+      expect(content.data.rows[0].tier).toBe(40);
     });
 
     it("should block access to system catalog schemas", async () => {

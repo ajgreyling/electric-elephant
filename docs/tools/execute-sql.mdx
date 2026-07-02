@@ -16,7 +16,7 @@ Execute SQL queries and statements on your database with support for transaction
 - **Transactions**: Wrap operations in `BEGIN`/`COMMIT` blocks for atomic execution
 - **Read-only mode**: When enabled with `--readonly` flag, only SELECT and read-only operations are allowed
 - **Row limiting**: Configure `--max-rows` to limit SELECT query results
-- **PII/clinical guard**: Clinical/health data (HL7v2, FHIR, LOINC, SNOMED, medical fields), wildcard projections (`SELECT *` / `table.*`), and personal identifiers (names, email, national IDs, DOB, address) are **hard-excluded** and can never be returned. The **only** overridable field is the user's mobile/phone number (the Helium username), opted into per tool (see below)
+- **PII/clinical guard**: Clinical/health data (HL7v2, FHIR, LOINC, SNOMED, medical fields), wildcard projections (`SELECT *` / `table.*`), and personal & sensitive data (names, email, government/financial IDs, DOB/age, address/location, biometric/device IDs, demographics, credentials/secrets) are **hard-excluded** and can never be returned. The **only** overridable field is the user's mobile/phone number (the Helium username), opted into per tool (see below)
 
 ## Single Query
 
@@ -186,7 +186,17 @@ clinical_standards = ["hl7v2", "fhir", "loinc", "snomed"]
 
 ### Hard-excluded PII (never overridable)
 
-Almost all personal data is also hard-excluded and can never be returned: names, email, national identifiers (SSN, tax ID, passport, national ID), dates of birth, addresses, patient/hospital numbers, and similar direct identifiers. `allow_access_to_pii_data` does **not** unblock these.
+Almost all personal and sensitive data is also hard-excluded and can never be returned. `allow_access_to_pii_data` does **not** unblock any of these:
+
+- **Names** — bare `name`, `full_name`, `first_name`/`last_name`, `surname`, `customer_name`, etc. (non-personal `*_name` columns such as `table_name`, `file_name`, `product_name`, `username` are allowed)
+- **Contact & government IDs** — email, SSN/social security, tax/VAT number, passport, national/identity number, driver's licence, voter ID
+- **Demographics / special category** — sex, gender, race, ethnicity, religion, nationality, citizenship, marital status, sexual orientation, political/trade-union affiliation
+- **Dates of birth & age** — DOB, birthday, birth year, age
+- **Address & location** — street, postal/zip code, city, province, latitude/longitude, GPS, coordinates
+- **Device & online identifiers** — IP/MAC address, device ID, IMEI, fingerprint, biometric
+- **Financial** — credit/debit card, card number, IBAN, SWIFT, bank/account number, routing/sort code, CVV
+- **Identifying media** — photo, avatar, profile picture, selfie, signature
+- **Credentials & secrets** — password (and hashes), API key, access/refresh/session tokens, private keys, client secret, OTP
 
 ### The only overridable field: mobile / phone number
 

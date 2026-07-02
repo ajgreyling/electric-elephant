@@ -29,7 +29,7 @@ export const executeSqlSchema = {
   sql: z
     .string()
     .describe(
-      "SQL to execute (multiple statements separated by ;). Health/clinical data (HL7v2, FHIR, LOINC, SNOMED, medical fields), personal identifiers (names, email, national IDs, DOB, address), and wildcard projections (SELECT *, table.*) are always blocked and cannot be returned; only the user's mobile/phone number may be permitted via allow_access_to_pii_data. List explicit, non-sensitive columns."
+      "SQL to execute (multiple statements separated by ;). Health/clinical data (HL7v2, FHIR, LOINC, SNOMED, medical fields), personal & sensitive data (names, email, government/financial IDs, DOB/age, address/location, biometric/device IDs, demographics, credentials/secrets), and wildcard projections (SELECT *, table.*) are always blocked and cannot be returned; only the user's mobile/phone number may be permitted via allow_access_to_pii_data. List explicit, non-sensitive columns."
     ),
 };
 

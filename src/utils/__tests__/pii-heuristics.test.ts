@@ -69,6 +69,32 @@ describe("pii-heuristics", () => {
       expect(findHardPiiMatchesInProjectionText("hos_number")).toContain("hos number");
     });
 
+    it("matches government IDs, financial, demographics, location, device, media, and secrets", () => {
+      const mustBlock = [
+        // government / national IDs
+        "passport_no", "id_no", "identity_number", "drivers_license", "vat_number", "tax_number", "voter_id",
+        // financial
+        "credit_card", "card_number", "iban", "bank_account", "account_number", "cvv", "sort_code",
+        // demographics / special category
+        "race", "ethnicity", "religion", "nationality", "citizenship", "marital_status", "sexual_orientation",
+        // dates of birth / age
+        "birthday", "birth_year", "age",
+        // address / location
+        "street_address", "postal_code", "zip_code", "city", "province", "latitude", "longitude", "gps",
+        // device / online identifiers
+        "ip_address", "mac_address", "device_id", "imei", "fingerprint", "biometric",
+        // media
+        "avatar", "profile_picture", "selfie", "signature",
+        // credentials / secrets
+        "password", "password_hash", "api_key", "access_token", "session_token", "private_key", "client_secret", "otp",
+        // contacts
+        "next_of_kin", "emergency_contact", "guardian_name",
+      ];
+      for (const col of mustBlock) {
+        expect(findHardPiiMatchesInProjectionText(col), `${col} should be hard PII`).not.toEqual([]);
+      }
+    });
+
     it("flags bare and compound personal-name columns", () => {
       expect(findHardPiiMatchesInProjectionText("name")).toContain("name");
       expect(findHardPiiMatchesInProjectionText("full_name")).toContain("name");
@@ -109,8 +135,18 @@ describe("pii-heuristics", () => {
     });
 
     it("does not flag benign columns", () => {
-      expect(findHardPiiMatchesInProjectionText("status_code")).toEqual([]);
-      expect(findHardPiiMatchesInProjectionText("created_at")).toEqual([]);
+      const benign = [
+        "status_code", "created_at", "updated_at", "id", "uuid", "user_id",
+        "product_id", "status", "total", "amount", "price", "quantity", "count",
+        "title", "description", "label", "slug", "sku", "category", "department",
+        "state", "country_code", "currency", "language", "locale", "timezone",
+        "page_count", "capacity", "subject", "priority", "severity", "score",
+        "rating", "version", "type", "kind", "color", "size", "weight", "height",
+        "width", "duration", "start_date", "end_date", "due_date",
+      ];
+      for (const col of benign) {
+        expect(findHardPiiMatchesInProjectionText(col), `${col} should be allowed`).toEqual([]);
+      }
     });
   });
 
