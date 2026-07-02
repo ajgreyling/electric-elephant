@@ -19,7 +19,7 @@ import { SafeURL } from "../../utils/safe-url.js";
 import { obfuscateDSNPassword } from "../../utils/dsn-obfuscate.js";
 import { SQLRowLimiter } from "../../utils/sql-row-limiter.js";
 import { quoteIdentifier } from "../../utils/identifier-quoter.js";
-import { splitSQLStatements } from "../../utils/sql-parser.js";
+import { splitSQLStatements, redactSqlLiterals } from "../../utils/sql-parser.js";
 import { FailedToReadCertificate } from "./failed-to-read-certificate.js";
 
 /**
@@ -653,9 +653,11 @@ export class PostgresConnector implements Connector {
       try {
         result = await client.query(processedStatement, parameters);
       } catch (error) {
+        // Redact SQL literals and log only parameter count/types (not values) so
+        // personal data in the statement or bound parameters never reaches stderr.
         console.error(`[PostgreSQL executeSQL] ERROR: ${(error as Error).message}`);
-        console.error(`[PostgreSQL executeSQL] SQL: ${processedStatement}`);
-        console.error(`[PostgreSQL executeSQL] Parameters: ${JSON.stringify(parameters)}`);
+        console.error(`[PostgreSQL executeSQL] SQL: ${redactSqlLiterals(processedStatement)}`);
+        console.error(`[PostgreSQL executeSQL] Parameters: ${describeParams(parameters)}`);
         throw error;
       }
     } else {
@@ -663,6 +665,13 @@ export class PostgresConnector implements Connector {
     }
     return { rows: result.rows, rowCount: result.rowCount ?? result.rows.length };
   }
+}
+
+/** Describe bound parameters by count and type only — never log their values. */
+function describeParams(parameters?: any[]): string {
+  if (!parameters || parameters.length === 0) { return "none"; }
+  const types = parameters.map((p) => (p === null ? "null" : typeof p));
+  return `${parameters.length} param(s) [${types.join(", ")}]`;
 }
 
 // Create and register the connector

@@ -268,7 +268,13 @@ export function createCustomToolHandler(toolConfig: ToolConfig) {
         const issues = error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
         errorMessage = `Parameter validation failed: ${issues}`;
       } else {
-        errorMessage = `${errorMessage}\n\nSQL: ${customConfig.statement}\nParameters: ${JSON.stringify(paramValues)}`;
+        // The statement is operator-defined (safe to surface), but parameter
+        // VALUES are runtime input that may be personal data — describe them by
+        // count/type instead of echoing values back to the client.
+        const paramTypes = paramValues.map((p) => (p === null ? "null" : typeof p));
+        const paramSummary =
+          paramValues.length > 0 ? `${paramValues.length} param(s) [${paramTypes.join(", ")}]` : "none";
+        errorMessage = `${errorMessage}\n\nSQL: ${customConfig.statement}\nParameters: ${paramSummary}`;
       }
 
       return createToolErrorResponse(errorMessage, "EXECUTION_ERROR");
