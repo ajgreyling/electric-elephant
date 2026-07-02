@@ -5,7 +5,7 @@
 
 import { ConnectorType } from "../connectors/interface.js";
 import { ParameterConfig } from "../types/config.js";
-import { stripCommentsAndStrings } from "./sql-parser.js";
+import { stripCommentsStringsAndIdentifiers } from "./sql-parser.js";
 
 /**
  * Parameter placeholder styles for different database connectors
@@ -24,7 +24,7 @@ export function detectParameterStyle(
   statement: string
 ): "numbered" | "positional" | "named" | "none" {
   // Strip comments and strings to avoid matching parameters inside them
-  const cleanedSQL = stripCommentsAndStrings(statement);
+  const cleanedSQL = stripCommentsStringsAndIdentifiers(statement);
 
   // Check for PostgreSQL-style numbered parameters ($1, $2, etc.)
   if (/\$\d+/.test(cleanedSQL)) {
@@ -87,7 +87,7 @@ export function validateParameterStyle(
 export function countParameters(statement: string): number {
   const style = detectParameterStyle(statement);
   // Strip comments and strings to avoid matching parameters inside them
-  const cleanedSQL = stripCommentsAndStrings(statement);
+  const cleanedSQL = stripCommentsStringsAndIdentifiers(statement);
 
   switch (style) {
     case "numbered": {

@@ -1,4 +1,4 @@
-const TokenType = { Plain: 0, Comment: 1, QuotedBlock: 2 } as const;
+const TokenType = { Plain: 0, Comment: 1, QuotedBlock: 2, QuotedIdentifier: 3 } as const;
 
 interface SQLToken {
   type: number;
@@ -48,7 +48,11 @@ function scanDoubleQuotedString(sql: string, i: number): SQLToken | null {
     else if (sql[j] === '"') { j++; break; }
     else { j++; }
   }
-  return { type: TokenType.QuotedBlock, end: j };
+  // In PostgreSQL, double quotes delimit an IDENTIFIER (e.g. a column name), not
+  // a string literal. It must be opaque for statement-splitting, but its content
+  // must be PRESERVED by stripCommentsAndStrings so downstream guards still see
+  // the column/table name (stripping it would erase names, bypassing the checks).
+  return { type: TokenType.QuotedIdentifier, end: j };
 }
 
 // Matches $$ or $tag$ where tag is [a-zA-Z_]\w* (digits after $ do NOT start a tag, so $1 is safe)
@@ -77,10 +81,7 @@ function scanTokenPostgres(sql: string, i: number): SQLToken {
     ?? plainToken(i);
 }
 
-/**
- * Replace comments, string literals, and PostgreSQL dollar-quoted blocks with a single space each.
- */
-export function stripCommentsAndStrings(sql: string): string {
+function stripTokens(sql: string, preserveQuotedIdentifiers: boolean): string {
   const parts: string[] = [];
   let plainStart = -1;
   let i = 0;
@@ -88,7 +89,11 @@ export function stripCommentsAndStrings(sql: string): string {
   while (i < sql.length) {
     const token = scanTokenPostgres(sql, i);
 
-    if (token.type === TokenType.Plain) {
+    const keep =
+      token.type === TokenType.Plain ||
+      (preserveQuotedIdentifiers && token.type === TokenType.QuotedIdentifier);
+
+    if (keep) {
       if (plainStart === -1) { plainStart = i; }
     } else {
       if (plainStart !== -1) {
@@ -106,6 +111,28 @@ export function stripCommentsAndStrings(sql: string): string {
   }
 
   return parts.join("");
+}
+
+/**
+ * Replace comments, string literals, and PostgreSQL dollar-quoted blocks with a
+ * single space each, but PRESERVE double-quoted identifiers (column/table names).
+ *
+ * Use this for anything that inspects identifier NAMES — the PII guard and
+ * schema-scope checks — so a quoted `"email"` / `"information_schema"` cannot
+ * hide from name-based detection.
+ */
+export function stripCommentsAndStrings(sql: string): string {
+  return stripTokens(sql, /* preserveQuotedIdentifiers */ true);
+}
+
+/**
+ * Like {@link stripCommentsAndStrings} but ALSO blanks out double-quoted
+ * identifiers. Use this for structural keyword/parameter scanning (LIMIT
+ * detection, `$n` parameter-style detection) where an identifier such as
+ * `"limit 10"` or `"table$1"` must not be mistaken for SQL structure.
+ */
+export function stripCommentsStringsAndIdentifiers(sql: string): string {
+  return stripTokens(sql, /* preserveQuotedIdentifiers */ false);
 }
 
 /**

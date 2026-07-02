@@ -41,8 +41,17 @@ describe("stripCommentsAndStrings (PostgreSQL)", () => {
       expect(stripCommentsAndStrings("SELECT 'hello' AS msg")).toBe("SELECT   AS msg");
     });
 
-    it("should strip double-quoted identifiers", () => {
-      expect(stripCommentsAndStrings('SELECT * FROM "my table"')).toBe("SELECT * FROM  ");
+    it("should PRESERVE double-quoted identifiers (they are column/table names, not string literals)", () => {
+      // Stripping these would erase column names from downstream guards (PII,
+      // schema-scope), letting `SELECT "email"` bypass name-based detection.
+      expect(stripCommentsAndStrings('SELECT * FROM "my table"')).toBe('SELECT * FROM "my table"');
+      expect(stripCommentsAndStrings('SELECT "email" FROM users')).toBe('SELECT "email" FROM users');
+    });
+
+    it("still strips single-quoted string literals even next to quoted identifiers", () => {
+      expect(stripCommentsAndStrings(`SELECT "email" FROM users WHERE name = 'bob'`)).toBe(
+        'SELECT "email" FROM users WHERE name =  '
+      );
     });
   });
 

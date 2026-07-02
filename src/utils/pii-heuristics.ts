@@ -507,6 +507,8 @@ const WEAK_PAIR_TOKENS = new Set(["result", "status", "note"]);
  */
 export function normalizePiiMatchText(text: string): string {
   return text
+    // Strip SQL double-quoted-identifier quotes so "email" matches email.
+    .replace(/"/g, "")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]{2,})([A-Z][a-z]+)/g, "$1 $2")
     .toLowerCase()
@@ -657,5 +659,45 @@ export function projectionItemIsWildcard(item: string): boolean {
   const t = item.trim();
   if (t === "*") { return true; }
   if (/\.\s*\*\s*$/.test(t)) { return true; }
+  return false;
+}
+
+/**
+ * Row-serializing functions that emit an ENTIRE composite row/record. When applied
+ * to a table/alias reference they return every column — including hard-excluded
+ * ones — without naming any column, bypassing name-based matching.
+ */
+const ROW_SERIALIZING_FUNCTIONS = new Set([
+  "to_json",
+  "to_jsonb",
+  "row_to_json",
+  "json_agg",
+  "jsonb_agg",
+  "json_build_array",
+  "array_agg",
+  "hstore",
+  "row",
+]);
+
+/**
+ * True if a projection item could emit a whole composite row/record and therefore
+ * cannot be statically proven free of hard-excluded columns. Covers:
+ *   - a row-serializing function wrapping a bare identifier or `alias.*`
+ *     (e.g. to_json(users), row_to_json(u), array_agg(u), row(u.*))
+ * The bare `SELECT u FROM users u` record form is handled at the statement level
+ * where FROM-clause aliases are known.
+ */
+export function projectionItemIsWholeRowRisk(item: string): boolean {
+  const t = item.trim();
+  const m = /^([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*([\s\S]*)\)\s*$/.exec(t);
+  if (!m) { return false; }
+  const fn = m[1]!.toLowerCase();
+  if (!ROW_SERIALIZING_FUNCTIONS.has(fn)) { return false; }
+  const arg = m[2]!.trim();
+  // A bare identifier argument (to_json(users)) or a table.* argument
+  // (array_agg(u.*), row(u.*)) serializes the whole record.
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(arg)) { return true; }
+  if (/\.\s*\*\s*$/.test(arg)) { return true; }
+  if (arg === "*") { return true; }
   return false;
 }

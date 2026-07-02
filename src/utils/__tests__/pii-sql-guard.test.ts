@@ -10,6 +10,47 @@ describe("pii-sql-guard", () => {
     expect(r).toEqual({ ok: true });
   });
 
+  describe("bypass resistance (whole-row/record projections, even with override on)", () => {
+    // These project an entire row (all columns, incl. hard-excluded) WITHOUT
+    // naming any PII column — they must be blocked as an unprovable-safe risk.
+    const bypasses = [
+      "SELECT to_json(users) FROM users",
+      "SELECT row_to_json(u) FROM users u",
+      "SELECT to_jsonb(u) FROM users u",
+      "SELECT json_agg(users) FROM users",
+      "SELECT jsonb_agg(u) FROM users u",
+      "SELECT array_agg(u) FROM users u",
+      "SELECT hstore(users) FROM users",
+      "SELECT row(u.*) FROM users u",
+      "SELECT u FROM users u",
+      "SELECT users FROM users",
+      "SELECT public.users FROM public.users",
+    ];
+    for (const sql of bypasses) {
+      it(`blocks: ${sql}`, () => {
+        const r = validateSqlPiiAccessGuard(sql, true);
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+          expect(r.reason).toBe("wildcard_clinical_risk");
+        }
+      });
+    }
+
+    it("blocks a double-quoted PII identifier (quotes must not hide the name)", () => {
+      const r = validateSqlPiiAccessGuard('SELECT "email" FROM users', true);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.reason).toBe("hard_pii_blocked");
+      }
+    });
+
+    it("does not over-block: whole-row aggregate of a benign scalar column stays scalar", () => {
+      // count(*) and plain scalar projections must remain allowed.
+      expect(validateSqlPiiAccessGuard("SELECT count(*) FROM users", true)).toEqual({ ok: true });
+      expect(validateSqlPiiAccessGuard('SELECT "id", "status" FROM users', true)).toEqual({ ok: true });
+    });
+  });
+
   it("blocks wildcard projections when access is denied", () => {
     const r = validateSqlPiiAccessGuard("SELECT * FROM patients", false);
     expect(r.ok).toBe(false);

@@ -1,4 +1,4 @@
-import { stripCommentsAndStrings } from "./sql-parser.js";
+import { stripCommentsStringsAndIdentifiers } from "./sql-parser.js";
 
 /**
  * Apply row limits to SELECT queries using PostgreSQL LIMIT.
@@ -18,7 +18,7 @@ export class SQLRowLimiter {
    * Strips comments and string literals first to avoid false positives.
    */
   static hasLimitClause(sql: string): boolean {
-    const cleanedSQL = stripCommentsAndStrings(sql);
+    const cleanedSQL = stripCommentsStringsAndIdentifiers(sql);
     const limitRegex = /\blimit\s+(?:\d+|\$\d+)/i;
     return limitRegex.test(cleanedSQL);
   }
@@ -28,7 +28,7 @@ export class SQLRowLimiter {
    * Strips comments and string literals first to avoid false positives.
    */
   static extractLimitValue(sql: string): number | null {
-    const cleanedSQL = stripCommentsAndStrings(sql);
+    const cleanedSQL = stripCommentsStringsAndIdentifiers(sql);
     const limitMatch = cleanedSQL.match(/\blimit\s+(\d+)/i);
     if (limitMatch) {
       return parseInt(limitMatch[1], 10);
@@ -58,7 +58,7 @@ export class SQLRowLimiter {
    * Check if a LIMIT clause uses a PostgreSQL parameter placeholder (not a literal number).
    */
   static hasParameterizedLimit(sql: string): boolean {
-    const cleanedSQL = stripCommentsAndStrings(sql);
+    const cleanedSQL = stripCommentsStringsAndIdentifiers(sql);
     return /\blimit\s+\$\d+/i.test(cleanedSQL);
   }
 

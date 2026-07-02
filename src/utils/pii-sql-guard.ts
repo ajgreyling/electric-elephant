@@ -4,6 +4,7 @@ import {
   findHardPiiMatchesInProjectionText,
   findPiiMatchesInProjectionText,
   projectionItemIsWildcard,
+  projectionItemIsWholeRowRisk,
 } from "./pii-heuristics.js";
 import { splitSQLStatements, stripCommentsAndStrings } from "./sql-parser.js";
 
@@ -134,6 +135,56 @@ function collectAllSelectProjections(sql: string): string[] {
   return projections;
 }
 
+/**
+ * Collect table names and aliases referenced in FROM/JOIN clauses. A projection
+ * item that is a bare identifier matching one of these is a whole-row RECORD
+ * projection (e.g. `SELECT u FROM users u`) — it emits every column and cannot be
+ * proven free of hard-excluded data.
+ */
+function collectRecordNames(sql: string): Set<string> {
+  const names = new Set<string>();
+  // Matches `FROM|JOIN <schema.>?table [AS] [alias]`, capturing table and optional alias.
+  const re = /\b(?:from|join)\s+(?:only\s+)?(?:([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*)?([a-zA-Z_][a-zA-Z0-9_]*)(?:\s+(?:as\s+)?([a-zA-Z_][a-zA-Z0-9_]*))?/gi;
+  const RESERVED = new Set(["as", "on", "using", "where", "group", "order", "left", "right", "inner", "outer", "full", "cross", "join", "lateral", "natural"]);
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(sql)) !== null) {
+    const schema = m[1];
+    const table = m[2]!;
+    const alias = m[3];
+    names.add(table.toLowerCase());
+    if (schema) {
+      names.add(`${schema.toLowerCase()}.${table.toLowerCase()}`);
+    }
+    if (alias && !RESERVED.has(alias.toLowerCase())) {
+      names.add(alias.toLowerCase());
+    }
+  }
+  return names;
+}
+
+/**
+ * True if a projection item is a whole-row RECORD reference: a bare identifier
+ * that names a FROM table/alias (e.g. `u` in `SELECT u FROM users u`), or a
+ * schema-qualified table name (e.g. `public.users`). A trailing `.column` after
+ * an alias is a normal scalar column and is NOT treated as a record here.
+ */
+function projectionItemIsRecordReference(item: string, recordNames: Set<string>): boolean {
+  const t = item.trim().replace(/"/g, "");
+  // Bare identifier matching a table/alias.
+  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(t)) {
+    return recordNames.has(t.toLowerCase());
+  }
+  // schema.table form (e.g. public.users) where the table part is a known record.
+  const m = /^([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)$/.exec(t);
+  if (m) {
+    // Only flag when this exact schema.table appears as a FROM record (not an
+    // alias.column projection). recordNames holds table names, so require the
+    // table part to be a record AND the whole schema.table to be referenced.
+    return recordNames.has(m[2]!.toLowerCase()) && recordNames.has(`${m[1]!.toLowerCase()}.${m[2]!.toLowerCase()}`);
+  }
+  return false;
+}
+
 function collectReturningProjectionsAtDepthZero(
   sql: string,
   rangeStart: number,
@@ -174,6 +225,7 @@ function pushUnique(target: string[], values: string[]): void {
 function analyzeProjectionListString(
   listStr: string,
   nest: number,
+  recordNames: Set<string>,
   enabledStandards?: ClinicalStandard[]
 ): ScanResult {
   const wildcards: string[] = [];
@@ -182,7 +234,11 @@ function analyzeProjectionListString(
   const hardPii: string[] = [];
   const items = splitListItemsAtDepthZero(listStr);
   for (const item of items) {
-    if (projectionItemIsWildcard(item)) {
+    if (
+      projectionItemIsWildcard(item) ||
+      projectionItemIsWholeRowRisk(item) ||
+      projectionItemIsRecordReference(item, recordNames)
+    ) {
       wildcards.push(item.length > 80 ? `${item.slice(0, 77)}...` : item.trim());
       continue;
     }
@@ -220,6 +276,7 @@ function scanStatementInternal(
   const allClinical: string[] = [];
   const allHardPii: string[] = [];
 
+  const recordNames = collectRecordNames(strippedStmt);
   const lists = [
     ...collectAllSelectProjections(strippedStmt),
     ...collectReturningProjectionsAtDepthZero(strippedStmt, 0, strippedStmt.length),
@@ -228,6 +285,7 @@ function scanStatementInternal(
     const { wildcards, pii, clinical, hardPii } = analyzeProjectionListString(
       rawList,
       nest,
+      recordNames,
       enabledStandards
     );
     allWild.push(...wildcards);
