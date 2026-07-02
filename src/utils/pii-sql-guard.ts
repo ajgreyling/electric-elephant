@@ -201,14 +201,26 @@ function projectionItemContainsBareRecord(item: string, recordNames: Set<string>
   while ((m = idRe.exec(t)) !== null) {
     const name = m[0]!.toLowerCase();
     if (!recordNames.has(name)) { continue; }
-    const before = m.index > 0 ? t[m.index - 1] : "";
-    const afterIdx = m.index + m[0]!.length;
-    // Skip whitespace to find the next significant char after the identifier.
-    let k = afterIdx;
+
+    // Char immediately before/after (for qualified-reference detection).
+    const beforeChar = m.index > 0 ? t[m.index - 1] : "";
+    let k = m.index + m[0]!.length;
     while (k < t.length && /\s/.test(t[k]!)) { k++; }
-    const after = k < t.length ? t[k] : "";
-    // Qualified reference (`x.record` or `record.col`) → not a whole-row record.
-    if (before === "." || after === ".") { continue; }
+    const afterChar = k < t.length ? t[k] : "";
+    // Qualified reference (`x.record` or `record.col`) → a column, not a record.
+    if (beforeChar === "." || afterChar === ".") { continue; }
+
+    // Preceding TOKEN: if it's another identifier or `AS`, this occurrence is an
+    // alias DEFINITION inside a nested FROM/JOIN (e.g. `orders o`, `labs AS l`),
+    // not a record value being projected. Skip it.
+    const preceding = t.slice(0, m.index);
+    const prevTokenMatch = /([a-zA-Z_][a-zA-Z0-9_]*)\s*$/.exec(preceding);
+    if (prevTokenMatch) {
+      const prevTok = prevTokenMatch[1]!.toLowerCase();
+      // `as` alias, or any identifier that isn't itself a value-producing keyword.
+      const valueKeywords = new Set(["select", "distinct", "all", "case", "when", "then", "else", "and", "or", "not", "return", "returning"]);
+      if (!valueKeywords.has(prevTok)) { continue; }
+    }
     return true;
   }
   return false;

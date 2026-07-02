@@ -25,6 +25,17 @@ describe("pii-sql-guard", () => {
       "SELECT u FROM users u",
       "SELECT users FROM users",
       "SELECT public.users FROM public.users",
+      // Records passed through builders / nested serializers (found via re-attack).
+      "SELECT jsonb_build_object('u', u) FROM users u",
+      "SELECT json_build_object('u', u) FROM users u",
+      "SELECT jsonb_agg(row_to_json(u)) FROM users u",
+      "SELECT array_to_json(array_agg(u)) FROM users u",
+      "SELECT json_object_agg(id, u) FROM users u",
+      "SELECT to_json(row(u.*)) FROM users u",
+      "SELECT unnest(array_agg(u)) FROM users u",
+      "SELECT jsonb_each(to_jsonb(u)) FROM users u",
+      // Record aliased through a CTE, then projected downstream.
+      "WITH t AS (SELECT u AS rec FROM users u) SELECT rec FROM t",
     ];
     for (const sql of bypasses) {
       it(`blocks: ${sql}`, () => {
@@ -44,10 +55,32 @@ describe("pii-sql-guard", () => {
       }
     });
 
-    it("does not over-block: whole-row aggregate of a benign scalar column stays scalar", () => {
-      // count(*) and plain scalar projections must remain allowed.
-      expect(validateSqlPiiAccessGuard("SELECT count(*) FROM users", true)).toEqual({ ok: true });
-      expect(validateSqlPiiAccessGuard('SELECT "id", "status" FROM users', true)).toEqual({ ok: true });
+    it("does not over-block: scalar projections and qualified columns stay allowed", () => {
+      // Record detection must not fire on qualified alias.column or scalar exprs.
+      const allowed = [
+        "SELECT count(*) FROM users u",
+        'SELECT "id", "status" FROM users',
+        "SELECT u.status FROM users u",
+        "SELECT jsonb_agg(u.status) FROM users u",
+        "SELECT json_build_object('s', u.status) FROM users u",
+        "SELECT upper(u.status) FROM users u",
+        "SELECT o.total, o.created_at FROM orders o JOIN users u ON u.id = o.user_id",
+      ];
+      for (const sql of allowed) {
+        expect(validateSqlPiiAccessGuard(sql, true), `${sql} should be allowed`).toEqual({ ok: true });
+      }
+    });
+
+    it("does not over-block correlated scalar subqueries (nested FROM alias is not a record projection)", () => {
+      // The bare alias in a nested `FROM orders o` is an alias DEFINITION, not a
+      // projected record — these must stay allowed.
+      const allowed = [
+        "SELECT id, (SELECT count(*) FROM orders o WHERE o.uid = p.id) AS n FROM patients p",
+        "SELECT p.id, (SELECT max(o.total) FROM orders o WHERE o.uid = p.id) FROM patients p",
+      ];
+      for (const sql of allowed) {
+        expect(validateSqlPiiAccessGuard(sql, true), `${sql} should be allowed`).toEqual({ ok: true });
+      }
     });
   });
 
