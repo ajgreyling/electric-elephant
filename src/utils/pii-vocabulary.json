@@ -1,0 +1,34 @@
+{
+  "$schema_version": "1.0.0",
+  "description": "Canonical PII / clinical vocabulary shared across data-guard implementations (electric-elephant TS guard and CongoSky pii-firewall). Single source of truth so coverage cannot drift between repos. Terms are normalized: lower-case, spaces separate words (underscores/hyphens/camelCase are normalized to spaces at match time). Multi-word phrases match as a contiguous phrase; single tokens match on word boundaries.",
+  "policy": {
+    "hard_pii": "Never returnable / never sent to an external brain. Not overridable by any flag.",
+    "clinical": "Health/clinical data (HL7v2, FHIR, LOINC, SNOMED, medical heuristics). Never overridable; every standard is always evaluated.",
+    "overridable": "The ONLY class an explicit opt-in may release: the user's mobile/phone number (the Helium username).",
+    "safe_name_prefixes": "Qualifiers that make a *_name column non-personal (e.g. table_name, username). A bare/other-prefixed name is personal and hard-excluded.",
+    "medical_context_tokens": "Weak tokens (result/status/note) are only treated as clinical when paired with one of these context tokens."
+  },
+  "hard_pii": {
+    "names": ["surname", "given name", "family name", "middle name", "maiden name", "first name", "last name", "full name", "next of kin", "emergency contact", "guardian name", "spouse name", "kin"],
+    "contact": ["email", "email address", "fax"],
+    "government_ids": ["ssn", "social security", "tax id", "tax number", "tax no", "vat number", "vat no", "passport", "passport number", "passport no", "national id", "national identity", "identity number", "identity no", "id number", "id no", "drivers license", "driver license", "driving license", "license number", "licence number", "voter id"],
+    "demographics_special_category": ["sex", "gender", "race", "ethnicity", "ethnic", "religion", "religious", "nationality", "citizenship", "marital status", "sexual orientation", "political", "trade union"],
+    "dob_age": ["dob", "date of birth", "birth date", "birthdate", "birthday", "birth year", "age"],
+    "address_location": ["address", "street", "street address", "postal code", "postal address", "post code", "postcode", "zip", "zip code", "suburb", "city", "province", "latitude", "longitude", "geolocation", "geo location", "gps", "coordinates"],
+    "device_online_ids": ["ip address", "mac address", "device id", "imei", "imsi", "fingerprint", "biometric"],
+    "financial": ["credit card", "debit card", "card number", "card no", "cardholder", "iban", "swift", "bank account", "account number", "account no", "routing number", "sort code", "cvv", "cvc"],
+    "identifying_media": ["photo", "avatar", "profile picture", "selfie", "signature"],
+    "credentials_secrets": ["password", "passwd", "password hash", "secret", "api key", "apikey", "access token", "refresh token", "session token", "auth token", "bearer token", "private key", "client secret", "otp"],
+    "identifiers_misc": ["identifier", "identifier fields", "patient id", "patient code", "hospital number", "hos number"]
+  },
+  "clinical": {
+    "hl7v2": ["hiv", "hiv result", "hiv test", "hiv status", "aids", "tb", "tuberculosis", "tb result", "tb test", "tb status", "mantoux", "quantiferon", "gene expert", "gene xpert", "genexpert", "viral load", "cd4", "arv", "antiretroviral", "lab result", "test result", "blood result", "blood test", "blood glucose", "blood count", "blood gas", "blood type", "hemoglobin", "hematocrit", "platelet", "creatinine", "hba1c", "hemoglobin a1c", "a1c", "cbc", "cmp", "bmp", "inr", "serology", "pathology", "histology", "cytology", "biopsy", "culture result", "sensitivity report", "specimen id", "urinalysis", "diagnosis", "comorbidity", "problem list", "chief complaint", "progress note", "chart note", "clinical note", "clinical status", "discharge summary", "admission note", "physical exam", "family history", "social history", "surgical history", "medication list", "prescription", "immunization", "vaccination record", "allergy", "allergies", "screening result", "infection status", "result for action", "result status", "result unit", "result comment", "result item", "result items", "test status", "test set", "authorised date", "authorized date", "order id", "barcode", "batch barcode", "tracking number", "hl7", "hl7 message", "hl7 message control id", "hl7messagecontrolid", "message control id", "messagecontrolid", "elz id", "elzid", "orderid", "batchbarcode", "patient location code", "testtype fields"],
+    "fhir": ["resource type", "subject reference", "patient reference", "patient identifier", "observation", "observation code", "observation value", "condition code", "diagnostic report", "encounter reference", "performer reference", "specimen reference", "value quantity", "value codeable concept", "effective date time"],
+    "loinc": ["loinc", "loinc code", "loinc number", "lab code", "observation code", "component code"],
+    "snomed": ["snomed", "snomed ct", "concept id", "clinical finding", "problem code", "diagnosis code", "disorder code"]
+  },
+  "medical_context_tokens": ["lab", "test", "diagnosis", "diagnostic", "screening", "infection", "infect", "clinical", "hiv", "tb", "tuberculosis", "viral", "cd4", "specimen", "patient", "identifier", "barcode", "batchbarcode", "orderid", "hl7", "messagecontrolid", "elzid", "eid", "patientcode", "patientid", "hos", "locationcode", "testtype", "resultforaction", "resultstatus", "medical", "medic", "pathology", "serology", "antibody", "antigen", "blood", "hemoglobin", "hematocrit", "platelet", "glucose", "creatinine", "histology", "cytology", "biopsy", "oncology", "chemotherapy", "radiotherapy", "radiology", "histopath", "bacteriology", "virology", "immunology", "hematology", "mycobacterium", "sputum", "csf", "pcr", "arv", "antiretroviral", "culture", "smear", "genexpert", "prescription", "allergy", "allergies", "immunization", "vaccine", "comorbid", "morbidity", "prognosis", "symptom", "icu", "inpatient", "outpatient"],
+  "weak_pair_tokens": ["result", "status", "note"],
+  "overridable_mobile": ["mobile", "mobile number", "mobile no", "phone", "phone number", "phone no", "cell", "cellphone", "cell phone", "msisdn", "contact number"],
+  "safe_name_prefixes": ["table", "column", "schema", "database", "db", "field", "object", "type", "index", "constraint", "role", "user", "host", "domain", "file", "path", "event", "product", "company", "organisation", "organization", "org", "brand", "tag", "key", "class", "method", "function", "variable", "attribute", "property", "parameter", "param", "step", "stage", "node", "service", "job", "task", "queue", "topic", "channel", "bucket", "region", "zone", "code", "screen", "page", "route", "app", "application", "module", "package", "project", "repo", "repository", "branch", "tenant", "category", "group", "team"]
+}
