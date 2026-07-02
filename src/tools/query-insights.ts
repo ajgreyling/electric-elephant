@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ConnectorManager } from "../connectors/manager.js";
 import { createToolErrorResponse, createToolSuccessResponse } from "../utils/response-formatter.js";
 import { getEffectiveSourceId, trackToolRequest } from "../utils/tool-handler-helpers.js";
+import { redactSqlLiterals } from "../utils/sql-parser.js";
 
 export const queryInsightsSchema = {
   sort_by: z
@@ -164,7 +165,9 @@ export function createQueryInsightsToolHandler(sourceId?: string) {
 
       const statements = (result.rows || []).map((row: Record<string, unknown>) => ({
         queryid: row.queryid,
-        query: row.query,
+        // Redact any literal values that survive pg_stat_statements normalization,
+        // so personal data embedded in query text is not returned.
+        query: typeof row.query === "string" ? redactSqlLiterals(row.query) : row.query,
         calls: row.calls,
         total_ms: row.total_ms,
         mean_ms: row.mean_ms,

@@ -136,6 +136,90 @@ export function stripCommentsStringsAndIdentifiers(sql: string): string {
 }
 
 /**
+ * Redact literal VALUES from SQL while preserving its shape, so query text can be
+ * stored/returned (request history, observability) without leaking PII embedded
+ * in literals (e.g. `WHERE email = 'bob@x.com'` → `WHERE email = '?'`).
+ *
+ * - Single-quoted strings and dollar-quoted blocks → `'?'`
+ * - Numeric literals → `?`
+ * - Comments → removed
+ * - Identifiers (plain and double-quoted) and keywords → preserved
+ *
+ * This is one-way and lossy; it is NOT a security boundary on its own, but it
+ * removes the most common way personal data rides along in query text.
+ */
+/**
+ * Within a comment/string-free plain run, replace standalone numeric literals with
+ * `?` while leaving identifiers (incl. those containing digits like `md5`, `int4`,
+ * `x1`) untouched.
+ */
+function maskNumericLiterals(text: string): string {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i]!;
+    // Identifier: starts with a letter or underscore; consume the whole token.
+    if (/[A-Za-z_]/.test(ch)) {
+      let j = i + 1;
+      while (j < text.length && /[A-Za-z0-9_]/.test(text[j]!)) { j++; }
+      out += text.slice(i, j);
+      i = j;
+      continue;
+    }
+    // Number: a digit not immediately following an identifier char (handled above)
+    // or a dot. Consume the whole numeric literal and mask it.
+    if (/[0-9]/.test(ch)) {
+      let j = i + 1;
+      while (j < text.length && /[0-9.]/.test(text[j]!)) { j++; }
+      out += "?";
+      i = j;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+export function redactSqlLiterals(sql: string): string {
+  const parts: string[] = [];
+  // Plain characters are emitted one-per-token by the scanner; buffer them into a
+  // contiguous run so numeric-literal masking sees whole tokens (not single chars).
+  let plainBuf = "";
+  const flushPlain = () => {
+    if (plainBuf) { parts.push(maskNumericLiterals(plainBuf)); plainBuf = ""; }
+  };
+
+  let i = 0;
+  while (i < sql.length) {
+    const token = scanTokenPostgres(sql, i);
+    const text = sql.substring(i, token.end);
+    switch (token.type) {
+      case TokenType.QuotedBlock:
+        // String literal or dollar-quoted body → single redacted placeholder.
+        flushPlain();
+        parts.push("'?'");
+        break;
+      case TokenType.Comment:
+        flushPlain();
+        parts.push(" ");
+        break;
+      case TokenType.QuotedIdentifier:
+        // A column/table name — preserved verbatim, never numeric-masked.
+        flushPlain();
+        parts.push(text);
+        break;
+      default:
+        plainBuf += text;
+        break;
+    }
+    i = token.end;
+  }
+  flushPlain();
+  return parts.join("").replace(/\s+/g, " ").trim();
+}
+
+/**
  * Split SQL into individual statements, handling semicolons inside quoted contexts (PostgreSQL rules).
  */
 export function splitSQLStatements(sql: string): string[] {

@@ -10,3 +10,7 @@ The Request Trace page (`/requests`) in Electric Elephant displays recent tool e
 ## Data Retention
 
 Request traces are stored in memory (resets on restart), keeping the latest 100 requests per source.
+
+## Literal redaction
+
+The SQL text shown in request traces (and returned by the `/api/requests` endpoint) is **redacted**: string and numeric literals are replaced with `?` placeholders (e.g. `WHERE email = 'bob@x.com'` becomes `WHERE email = '?'`), and comments are removed. This preserves the query shape for debugging while preventing personal data embedded in literals from being retained or exposed. Column and table names are preserved.

@@ -40,6 +40,10 @@ Optional **`query_like`** applies a SQL `ILIKE` pattern against the normalized `
 }
 ```
 
+## Literal redaction
+
+Returned query text is **redacted**: string and numeric literals are replaced with `?` placeholders and comments removed, so personal data embedded in query literals is not exposed. The same redaction applies to `diagnose_locks` (`waiting_query` / `blocking_query`) and to request-trace history. Column/table names and query shape are preserved.
+
 ## Next steps
 
 Each row includes **`recommended_next_step`**: use **`explain_plan`** with a **single**, **read-only** statement that matches the workload you are tuning.

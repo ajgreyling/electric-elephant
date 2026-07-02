@@ -1,5 +1,48 @@
 import { describe, it, expect } from "vitest";
-import { stripCommentsAndStrings, splitSQLStatements } from "../sql-parser.js";
+import {
+  stripCommentsAndStrings,
+  stripCommentsStringsAndIdentifiers,
+  redactSqlLiterals,
+  splitSQLStatements,
+} from "../sql-parser.js";
+
+describe("redactSqlLiterals", () => {
+  it("masks string literals but preserves query shape", () => {
+    expect(redactSqlLiterals("SELECT id FROM users WHERE email = 'bob@x.com'")).toBe(
+      "SELECT id FROM users WHERE email = '?'"
+    );
+  });
+
+  it("masks numeric literals as whole tokens", () => {
+    expect(redactSqlLiterals("SELECT * FROM t WHERE age = 42 AND score >= 99.95 LIMIT 10")).toBe(
+      "SELECT * FROM t WHERE age = ? AND score >= ? LIMIT ?"
+    );
+  });
+
+  it("preserves identifiers that contain digits", () => {
+    expect(redactSqlLiterals("SELECT md5(x), int4col, x1 FROM t")).toBe(
+      "SELECT md5(x), int4col, x1 FROM t"
+    );
+  });
+
+  it("preserves double-quoted identifiers verbatim (no numeric masking)", () => {
+    expect(redactSqlLiterals('SELECT "email1" FROM users WHERE id IN (1,2,3)')).toBe(
+      'SELECT "email1" FROM users WHERE id IN (?,?,?)'
+    );
+  });
+
+  it("drops comments (which can contain personal data)", () => {
+    expect(redactSqlLiterals("SELECT id -- note: bob@x.com\n FROM users")).toBe(
+      "SELECT id FROM users"
+    );
+  });
+
+  it("redacts values in INSERT/UPDATE", () => {
+    expect(redactSqlLiterals("UPDATE users SET password = 'secret' WHERE id = 7")).toBe(
+      "UPDATE users SET password = '?' WHERE id = ?"
+    );
+  });
+});
 
 describe("stripCommentsAndStrings (PostgreSQL)", () => {
   describe("single-line comments (--)", () => {

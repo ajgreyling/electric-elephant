@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ConnectorManager } from "../connectors/manager.js";
 import { createToolErrorResponse, createToolSuccessResponse } from "../utils/response-formatter.js";
 import { getEffectiveSourceId, trackToolRequest } from "../utils/tool-handler-helpers.js";
+import { redactSqlLiterals } from "../utils/sql-parser.js";
 
 export const diagnoseLocksSchema = {
   min_wait_seconds: z
@@ -123,13 +124,23 @@ export function createDiagnoseLocksToolHandler(sourceId?: string) {
         [min_wait_seconds, limit]
       );
 
-      const rows = include_idle_sessions
+      const filtered = include_idle_sessions
         ? result.rows
         : result.rows.filter((row) => {
             const waitingState = String(row.waiting_state || "");
             const blockingState = String(row.blocking_state || "");
             return !waitingState.startsWith("idle") && !blockingState.startsWith("idle");
           });
+
+      // pg_stat_activity.query is live, un-normalized SQL that can embed personal
+      // data in literals. Redact literal values before returning either query.
+      const rows = filtered.map((row) => ({
+        ...row,
+        waiting_query:
+          typeof row.waiting_query === "string" ? redactSqlLiterals(row.waiting_query) : row.waiting_query,
+        blocking_query:
+          typeof row.blocking_query === "string" ? redactSqlLiterals(row.blocking_query) : row.blocking_query,
+      }));
 
       return createToolSuccessResponse({
         source_id: effectiveSourceId,

@@ -7,6 +7,7 @@ import { ConnectorType } from "../connectors/interface.js";
 import { isReadOnlySQL, allowedKeywords } from "./allowed-keywords.js";
 import { requestStore } from "../requests/index.js";
 import { getClientIdentifier } from "./client-identifier.js";
+import { redactSqlLiterals } from "./sql-parser.js";
 
 /**
  * Request metadata for tracking
@@ -67,7 +68,10 @@ export function trackToolRequest(
     timestamp: new Date().toISOString(),
     sourceId: metadata.sourceId,
     toolName: metadata.toolName,
-    sql: metadata.sql,
+    // Redact literal values before storing: request history is exposed via the
+    // /api/requests HTTP endpoint, and raw literals (e.g. WHERE email='x') would
+    // leak the same data class the PII guard blocks on results.
+    sql: redactSqlLiterals(metadata.sql),
     durationMs: Date.now() - startTime,
     client: getClientIdentifier(extra),
     success,
