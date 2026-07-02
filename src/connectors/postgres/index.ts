@@ -20,6 +20,7 @@ import { obfuscateDSNPassword } from "../../utils/dsn-obfuscate.js";
 import { SQLRowLimiter } from "../../utils/sql-row-limiter.js";
 import { quoteIdentifier } from "../../utils/identifier-quoter.js";
 import { splitSQLStatements, redactSqlLiterals } from "../../utils/sql-parser.js";
+import { sanitizePgError } from "../../utils/pg-error-sanitizer.js";
 import { FailedToReadCertificate } from "./failed-to-read-certificate.js";
 
 /**
@@ -638,6 +639,10 @@ export class PostgresConnector implements Connector {
 
         return { rows: allRows, rowCount: totalRowCount };
       }
+    } catch (error) {
+      // Normalize every failure into a sanitized Error so value-bearing fields
+      // (.detail/.hint/.where/etc.) can never propagate to callers or logs.
+      throw sanitizePgError(error);
     } finally {
       client.release();
     }
