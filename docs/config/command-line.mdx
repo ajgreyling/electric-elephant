@@ -236,6 +236,23 @@ For behavior, error code `PII_ACCESS_VIOLATION`, and examples, see [Execute SQL 
   ```
 </ParamField>
 
+## HTTP authentication (http transport) {#http-auth}
+
+When running with `--transport=http`, the `/mcp` endpoint and the JSON API (`/api/*`) can be protected with a bearer token. Set **`--auth-token=<secret>`** or env **`AUTH_TOKEN`**; requests must then send `Authorization: Bearer <secret>`. Comparison is constant-time.
+
+- Unset/empty → **auth disabled** (default; unchanged behavior for stdio and trusted-localhost deployments).
+- Health checks (`/healthz`), static workbench assets, and CORS preflight (`OPTIONS`) are always open.
+- This is in addition to the built-in DNS-rebinding protection. For any network-exposed deployment, set a token.
+
+```bash
+AUTH_TOKEN=$(openssl rand -hex 32) npx electric-elephant --transport=http --dsn "postgres://..."
+# then: curl -H "Authorization: Bearer $AUTH_TOKEN" http://localhost:8080/api/sources
+```
+
+<ParamField path="--auth-token" type="string" env="AUTH_TOKEN">
+  **HTTP transport only.** Bearer token required on `/mcp` and `/api/*`. When unset or empty, HTTP authentication is disabled. CLI overrides env when both are set.
+</ParamField>
+
 ## Quick Reference
 
 | CLI Option | Env | Type | Description |
@@ -244,6 +261,7 @@ For behavior, error code `PII_ACCESS_VIOLATION`, and examples, see [Execute SQL 
 | `--port` | `PORT` | number | HTTP server port (http transport only, default: `8080`) |
 | `--id` | `ID` | string | Instance identifier for tool names |
 | `--config` | - | string | Path to TOML config file (default: `./dbhub.toml`) |
+| `--auth-token` | `AUTH_TOKEN` | string | HTTP transport only: require this bearer token on `/mcp` and `/api/*`. Unset = auth disabled |
 | `--schema` | - | string | Single-DSN only: default PostgreSQL schema (a single schema name; comma-separated lists are rejected) |
 | `--allow-destructive-sql` | - | string | Single-DSN only: bare or `true` / `1` / `yes` allows mutating SQL on `execute_sql` |
 | `--allow-access-to-pii-data` | `ALLOW_ACCESS_TO_PII_DATA` | string | Single-DSN only: bare or `true` / `1` / `yes` permits the mobile number on `execute_sql`; health data and other PII stay hard-excluded |

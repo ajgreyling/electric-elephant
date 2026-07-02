@@ -24,6 +24,7 @@ function writeStderrLine(message: string): void {
 export const KNOWN_CLI_FLAGS = new Set([
   "allow-access-to-pii-data",
   "allow-destructive-sql",
+  "auth-token",
   "config",
   "demo",
   "dsn",
@@ -232,6 +233,25 @@ export function allowAccessToPiiDataFromEnvCli(): boolean {
   return v === "true" || v === "1" || v === "yes";
 }
 
+
+/**
+ * Optional bearer token protecting the HTTP transport (`/mcp`) and JSON API
+ * (`/api/*`). Sourced from `--auth-token=<secret>` or env `AUTH_TOKEN`. When
+ * unset/empty, HTTP auth is disabled (backward compatible with stdio and trusted
+ * localhost deployments). CLI overrides env when set.
+ */
+export function resolveAuthToken(): string | undefined {
+  const args = parseCommandLineArgs();
+  const cli = args["auth-token"];
+  if (cli !== undefined && cli.trim() !== "") {
+    return cli.trim();
+  }
+  const env = process.env.AUTH_TOKEN;
+  if (env !== undefined && env.trim() !== "") {
+    return env.trim();
+  }
+  return undefined;
+}
 
 /**
  * Build DSN from individual environment variables

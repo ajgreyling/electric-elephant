@@ -28,6 +28,7 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     delete process.env.DB_NAME;
     delete process.env.DSN;
     delete process.env.ALLOW_ACCESS_TO_PII_DATA;
+    delete process.env.AUTH_TOKEN;
     vi.spyOn(envModule, "loadEnvFiles").mockReturnValue(null);
   });
 
@@ -275,6 +276,33 @@ describe("Environment Configuration Tests (PostgreSQL-only)", () => {
     it("returns false for --allow-access-to-pii-data= (empty)", () => {
       process.argv = ["node", "script.js", "--allow-access-to-pii-data="];
       expect(envModule.allowAccessToPiiDataFromEnvCli()).toBe(false);
+    });
+  });
+
+  describe("resolveAuthToken", () => {
+    it("returns undefined when no CLI flag and no env (auth disabled)", () => {
+      expect(envModule.resolveAuthToken()).toBeUndefined();
+    });
+
+    it("reads AUTH_TOKEN from env", () => {
+      process.env.AUTH_TOKEN = "s3cret";
+      expect(envModule.resolveAuthToken()).toBe("s3cret");
+    });
+
+    it("reads --auth-token from CLI and trims it", () => {
+      process.argv = ["node", "script.js", "--auth-token=  abc123  "];
+      expect(envModule.resolveAuthToken()).toBe("abc123");
+    });
+
+    it("CLI overrides env", () => {
+      process.env.AUTH_TOKEN = "from-env";
+      process.argv = ["node", "script.js", "--auth-token=from-cli"];
+      expect(envModule.resolveAuthToken()).toBe("from-cli");
+    });
+
+    it("treats empty values as unset", () => {
+      process.env.AUTH_TOKEN = "   ";
+      expect(envModule.resolveAuthToken()).toBeUndefined();
     });
   });
 

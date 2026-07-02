@@ -132,6 +132,7 @@ Electric Elephant supports three configuration methods (in priority order):
 - `--schema`: Single-DSN `search_path` (comma-separated schemas), same as TOML `search_path`
 - `--transport`: `stdio` (default) or `http` for streamable HTTP transport (endpoint: `/mcp`)
 - `--port`: HTTP server port (default: 8080)
+- `--auth-token` / `AUTH_TOKEN`: HTTP transport only — require this bearer token on `/mcp` and `/api/*` (unset = disabled). Middleware in `src/utils/auth-middleware.ts`, resolver `resolveAuthToken()` in `src/config/env.ts`.
 - `--config`: Path to TOML configuration file
 - `--allow-destructive-sql`: Allow INSERT/UPDATE/DELETE etc. (single-DSN mode only; bare flag or `=true` / `1` / `yes`; without this, server defaults to read-only)
 - `--allow-access-to-pii-data`: Allow `execute_sql` past the PII/clinical guard (single-DSN only; bare flag or `=true` / `1` / `yes`; TOML `allow_access_to_pii_data` is preferred for multi-source)

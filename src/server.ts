@@ -8,7 +8,8 @@ import { fileURLToPath } from "url";
 
 import { ConnectorManager } from "./connectors/manager.js";
 import { ConnectorRegistry } from "./connectors/interface.js";
-import { resolveTransport, resolvePort, resolveSourceConfigs } from "./config/env.js";
+import { resolveTransport, resolvePort, resolveSourceConfigs, resolveAuthToken } from "./config/env.js";
+import { createAuthMiddleware } from "./utils/auth-middleware.js";
 import { registerTools } from "./tools/index.js";
 import { listSources, getSource } from "./api/sources.js";
 import { listRequests } from "./api/requests.js";
@@ -202,6 +203,17 @@ See documentation for more details on configuring database connections.
         }
         next();
       });
+
+      // Optional bearer-token authentication for the MCP endpoint and JSON API.
+      // Enabled only when --auth-token / AUTH_TOKEN is set; otherwise a no-op so
+      // stdio and trusted-localhost deployments are unaffected.
+      const authToken = resolveAuthToken();
+      app.use(createAuthMiddleware(authToken));
+      writeStderrLine(
+        authToken
+          ? "HTTP auth: bearer token required for /mcp and /api/*"
+          : "HTTP auth: disabled (no --auth-token / AUTH_TOKEN set)"
+      );
 
       // Serve static frontend files
       const frontendPath = path.join(__dirname, "public");
