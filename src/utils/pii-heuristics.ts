@@ -689,6 +689,9 @@ const ROW_SERIALIZING_FUNCTIONS = new Set([
  */
 export function projectionItemIsWholeRowRisk(item: string): boolean {
   const t = item.trim();
+  // A qualified `alias.*` anywhere in the expression (even nested inside another
+  // function, e.g. to_json(row(u.*))) expands a whole row — always a risk.
+  if (/[a-zA-Z_][a-zA-Z0-9_]*\s*\.\s*\*/.test(t)) { return true; }
   const m = /^([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*([\s\S]*)\)\s*$/.exec(t);
   if (!m) { return false; }
   const fn = m[1]!.toLowerCase();

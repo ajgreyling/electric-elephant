@@ -185,6 +185,35 @@ function projectionItemIsRecordReference(item: string, recordNames: Set<string>)
   return false;
 }
 
+/**
+ * True if a projection item passes a whole-row RECORD anywhere within it — e.g. a
+ * FROM alias `u` used as a bare token inside any (possibly nested) function call:
+ * `to_json(u)`, `jsonb_build_object('u', u)`, `jsonb_agg(row_to_json(u))`,
+ * `array_to_json(array_agg(u))`. A record token is an identifier that names a FROM
+ * table/alias and is NOT part of a qualified `alias.column` (no dot immediately
+ * before or after it), so scalar columns like `u.status` are unaffected.
+ */
+function projectionItemContainsBareRecord(item: string, recordNames: Set<string>): boolean {
+  if (recordNames.size === 0) { return false; }
+  const t = item.replace(/"/g, "");
+  const idRe = /[a-zA-Z_][a-zA-Z0-9_]*/g;
+  let m: RegExpExecArray | null;
+  while ((m = idRe.exec(t)) !== null) {
+    const name = m[0]!.toLowerCase();
+    if (!recordNames.has(name)) { continue; }
+    const before = m.index > 0 ? t[m.index - 1] : "";
+    const afterIdx = m.index + m[0]!.length;
+    // Skip whitespace to find the next significant char after the identifier.
+    let k = afterIdx;
+    while (k < t.length && /\s/.test(t[k]!)) { k++; }
+    const after = k < t.length ? t[k] : "";
+    // Qualified reference (`x.record` or `record.col`) → not a whole-row record.
+    if (before === "." || after === ".") { continue; }
+    return true;
+  }
+  return false;
+}
+
 function collectReturningProjectionsAtDepthZero(
   sql: string,
   rangeStart: number,
@@ -237,7 +266,8 @@ function analyzeProjectionListString(
     if (
       projectionItemIsWildcard(item) ||
       projectionItemIsWholeRowRisk(item) ||
-      projectionItemIsRecordReference(item, recordNames)
+      projectionItemIsRecordReference(item, recordNames) ||
+      projectionItemContainsBareRecord(item, recordNames)
     ) {
       wildcards.push(item.length > 80 ? `${item.slice(0, 77)}...` : item.trim());
       continue;
