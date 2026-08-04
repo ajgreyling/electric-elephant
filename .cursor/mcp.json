@@ -1,27 +1,3 @@
 {
-  "mcpServers": {
-    "electric-elephant-dev": {
-      "url": "http://localhost:8080/mcp"
-    },
-    "db-chatbot-staging-sams-sedfa": {
-      "command": "npx",
-      "args": [
-        "electric-elephant",
-        "--transport",
-        "stdio",
-        "--dsn",
-        "postgres://27795341288:0BE34817-12B4-4F4F-A05C-E21E44908426@172.22.22.52:5432/helium-app-1",
-        "--schema",
-        "sams__sedfa_001",
-        "--ssh-host",
-        "41.21.202.242",
-        "--ssh-port",
-        "2204",
-        "--ssh-user",
-        "developer",
-        "--ssh-key",
-        "~/.ssh/aj1"
-      ]
-    }
-  }
+  "mcpServers": {}
 }
